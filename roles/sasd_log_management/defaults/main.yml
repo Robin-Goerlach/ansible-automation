@@ -1,0 +1,12 @@
+---
+sasd_log_management_mode: audit
+sasd_log_management_apply_confirmation: ""
+sasd_log_management_manage: true
+sasd_log_management_journal_storage: persistent
+sasd_log_management_system_max_use: 1G
+sasd_log_management_runtime_max_use: 256M
+sasd_log_management_max_retention_sec: 1month
+sasd_log_management_compress: true
+sasd_log_management_logrotate_entries: []
+sasd_log_management_report_enabled: true
+sasd_log_management_report_root: reports/linux-baseline/log-management

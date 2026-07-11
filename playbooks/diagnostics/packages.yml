@@ -1,0 +1,23 @@
+---
+# Purpose: collect package, update, lock, and reboot-required diagnostics.
+# Safety: package-manager queries are simulations; metadata is not refreshed.
+- name: Collect Linux package diagnostics
+  hosts: linux_managed
+  gather_facts: true
+  become: false
+
+  pre_tasks:
+    - name: Package diagnostics | Freeze run identifier
+      ansible.builtin.set_fact:
+        sasd_diagnostics_run_id_effective: >-
+          {{ sasd_diagnostics_run_id | default(ansible_facts.date_time.iso8601_basic_short, true) }}
+
+  roles:
+    - role: sasd_package_diagnostics
+      vars:
+        sasd_package_diagnostics_report_root: >-
+          {{
+            sasd_diagnostics_report_root | default('reports/diagnostics')
+            ~ '/' ~ sasd_diagnostics_run_id_effective
+            ~ '/' ~ inventory_hostname
+          }}

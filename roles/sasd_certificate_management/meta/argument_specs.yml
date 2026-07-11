@@ -1,0 +1,21 @@
+---
+argument_specs:
+  main:
+    short_description: Audit or apply TLS certificate material.
+    options:
+      sasd_certificate_management_mode:
+        type: str
+        choices: [audit, apply]
+        default: audit
+      sasd_certificate_management_apply_confirmation:
+        type: str
+        default: ""
+      sasd_certificate_management_manage:
+        type: bool
+        default: false
+      sasd_certificate_management_certificates:
+        type: list
+        elements: dict
+      sasd_certificate_management_minimum_remaining_days:
+        type: int
+        default: 30

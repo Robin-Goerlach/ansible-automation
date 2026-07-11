@@ -1,0 +1,10 @@
+---
+- name: Audit or apply Apache web-server configuration
+  hosts: webservers
+  become: "{{ (sasd_web_services_mode | default('audit')) == 'apply' }}"
+  gather_facts: true
+  roles:
+    - role: sasd_apache
+      vars:
+        sasd_apache_mode: "{{ sasd_web_services_mode | default('audit') }}"
+        sasd_apache_apply_confirmation: "{{ sasd_web_services_apply_confirmation | default('') }}"

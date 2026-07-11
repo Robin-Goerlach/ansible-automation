@@ -1,0 +1,11 @@
+---
+- name: Audit or apply TLS certificate material
+  hosts: webservers
+  become: "{{ (sasd_web_services_mode | default('audit')) == 'apply' }}"
+  gather_facts: true
+  roles:
+    - role: sasd_certificate_management
+      vars:
+        sasd_certificate_management_mode: "{{ sasd_web_services_mode | default('audit') }}"
+        sasd_certificate_management_apply_confirmation: >-
+          {{ sasd_web_services_apply_confirmation | default('') }}

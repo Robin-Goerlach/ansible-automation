@@ -1,0 +1,10 @@
+---
+sasd_package_management_mode: audit
+sasd_package_management_apply_confirmation: ""
+sasd_package_management_manage: true
+sasd_package_management_packages: []
+sasd_package_management_repository_files: []
+sasd_package_management_update_cache: false
+sasd_package_management_cache_valid_time: 3600
+sasd_package_management_report_enabled: true
+sasd_package_management_report_root: reports/linux-baseline/package-management

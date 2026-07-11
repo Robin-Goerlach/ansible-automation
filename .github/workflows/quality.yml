@@ -1,0 +1,73 @@
+---
+name: Milestone 4 Quality
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  static-quality:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+      - name: Install development tools
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          python -m pip install -r requirements-dev.txt
+      - name: Validate repository
+        run: scripts/test.sh
+  milestone-2-regression:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+      - name: Install development tools
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          python -m pip install -r requirements-dev.txt
+      - name: Run Milestone 2 safe acceptance
+        run: scripts/verify-milestone-2.sh
+  milestone-3-regression:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+      - name: Install development tools
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          python -m pip install -r requirements-dev.txt
+      - name: Run Milestone 3 safe acceptance
+        run: scripts/verify-milestone-3.sh
+  milestone-4-safe-acceptance:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+      - name: Install development tools
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          python -m pip install -r requirements-dev.txt
+      - name: Run Milestone 4 safe acceptance
+        run: scripts/verify-milestone-4.sh

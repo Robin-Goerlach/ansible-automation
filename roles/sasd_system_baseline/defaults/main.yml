@@ -1,0 +1,14 @@
+---
+sasd_system_baseline_mode: audit
+sasd_system_baseline_manage_packages: false
+sasd_system_baseline_packages:
+  - ca-certificates
+  - curl
+  - git
+  - rsync
+sasd_system_baseline_report_enabled: true
+sasd_system_baseline_report_root: reports/baseline
+sasd_system_baseline_supported_os_families:
+  - Debian
+  - RedHat
+  - Suse

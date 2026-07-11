@@ -1,0 +1,4 @@
+---
+# Safe acceptance entry point. The example inventory contains localhost only.
+- name: Import the diagnostics contract validation
+  ansible.builtin.import_playbook: diagnostics.yml

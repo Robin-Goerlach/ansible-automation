@@ -1,0 +1,14 @@
+# Managed by SASD Ansible Automation.
+{{ item.paths | join(' ') }} {
+    {{ item.frequency | default('weekly') }}
+    rotate {{ item.rotate | default(8) }}
+    {{ item.compress | default(true) | ternary('compress', 'nocompress') }}
+    missingok
+    notifempty
+{% if item.copytruncate | default(false) %}
+    copytruncate
+{% endif %}
+{% if item.create | default('0640 root root') %}
+    create {{ item.create | default('0640 root root') }}
+{% endif %}
+}

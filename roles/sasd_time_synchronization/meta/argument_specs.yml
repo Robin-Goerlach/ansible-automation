@@ -1,0 +1,22 @@
+---
+argument_specs:
+  main:
+    short_description: Audit or apply time synchronization.
+    options:
+      sasd_time_synchronization_mode:
+        type: str
+        choices: [audit, apply]
+        default: audit
+      sasd_time_synchronization_apply_confirmation:
+        type: str
+        default: ""
+      sasd_time_synchronization_manage:
+        type: bool
+        default: true
+      sasd_time_synchronization_provider:
+        type: str
+        choices: [auto, systemd-timesyncd, chrony]
+        default: auto
+      sasd_time_synchronization_servers:
+        type: list
+        elements: str

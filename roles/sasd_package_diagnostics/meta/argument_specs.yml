@@ -1,0 +1,23 @@
+---
+argument_specs:
+  main:
+    short_description: Collect read-only package and update diagnostics.
+    options:
+      sasd_package_diagnostics_selected_packages:
+        type: list
+        elements: str
+      sasd_package_diagnostics_collect_pending_updates:
+        type: bool
+        default: true
+      sasd_package_diagnostics_maximum_update_items:
+        type: int
+        default: 100
+      sasd_package_diagnostics_report_enabled:
+        type: bool
+        default: true
+      sasd_package_diagnostics_report_root:
+        type: str
+        default: reports/diagnostics/packages
+      sasd_package_diagnostics_lock_paths:
+        type: list
+        elements: str

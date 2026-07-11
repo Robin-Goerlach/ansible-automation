@@ -1,0 +1,16 @@
+---
+sasd_nginx_mode: audit
+sasd_nginx_apply_confirmation: ""
+sasd_nginx_manage: false
+sasd_nginx_manage_packages: true
+sasd_nginx_packages: []
+sasd_nginx_manage_service: true
+sasd_nginx_service_name: nginx
+sasd_nginx_service_enabled: true
+sasd_nginx_service_state: started
+sasd_nginx_virtual_hosts: []
+sasd_nginx_binary_candidates:
+  - /usr/sbin/nginx
+  - /usr/bin/nginx
+sasd_nginx_report_enabled: true
+sasd_nginx_report_root: reports/web-services/nginx

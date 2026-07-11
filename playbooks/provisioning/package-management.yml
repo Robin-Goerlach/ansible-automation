@@ -1,0 +1,13 @@
+---
+- name: Audit or apply package management
+  hosts: linux_managed
+  become: "{{ sasd_linux_baseline_mode == 'apply' }}"
+  gather_facts: true
+  vars:
+    sasd_linux_baseline_mode: audit
+    sasd_linux_baseline_apply_confirmation: ""
+  roles:
+    - role: sasd_package_management
+      vars:
+        sasd_package_management_mode: "{{ sasd_linux_baseline_mode }}"
+        sasd_package_management_apply_confirmation: "{{ sasd_linux_baseline_apply_confirmation }}"

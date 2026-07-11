@@ -1,0 +1,28 @@
+---
+- name: Validate Milestone 2 result contracts in audit mode
+  hosts: linux_managed
+  become: false
+  gather_facts: true
+  vars:
+    sasd_linux_baseline_mode: audit
+    sasd_linux_baseline_apply_confirmation: ""
+  roles:
+    - role: sasd_package_management
+    - role: sasd_user_management
+    - role: sasd_sudo_configuration
+    - role: sasd_ssh_server
+    - role: sasd_time_synchronization
+    - role: sasd_log_management
+    - role: sasd_firewall
+  post_tasks:
+    - name: Linux baseline validation | Assert all result schemas
+      ansible.builtin.assert:
+        that:
+          - sasd_package_management_result.schema == 'sasd.package-management.v1'
+          - sasd_user_management_result.schema == 'sasd.user-management.v1'
+          - sasd_sudo_configuration_result.schema == 'sasd.sudo-configuration.v1'
+          - sasd_ssh_server_result.schema == 'sasd.ssh-server.v1'
+          - sasd_time_synchronization_result.schema == 'sasd.time-synchronization.v1'
+          - sasd_log_management_result.schema == 'sasd.log-management.v1'
+          - sasd_firewall_result.schema == 'sasd.firewall.v1'
+        success_msg: All Milestone 2 role result contracts are valid.

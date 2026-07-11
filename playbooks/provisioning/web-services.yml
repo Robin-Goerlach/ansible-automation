@@ -1,0 +1,83 @@
+---
+- name: Audit or apply the SASD Milestone 3 web-services stack
+  hosts: webservers
+  become: "{{ (sasd_web_services_mode | default('audit')) == 'apply' }}"
+  gather_facts: true
+
+  pre_tasks:
+    - name: Web services | Validate global safety gate
+      ansible.builtin.assert:
+        that:
+          - (sasd_web_services_mode | default('audit')) in ['audit', 'apply']
+          - (sasd_web_services_server | default('none')) in ['none', 'apache', 'nginx', 'both']
+          - >-
+            (sasd_web_services_mode | default('audit')) == 'audit' or
+            (sasd_web_services_apply_confirmation | default('')) == 'SASD_APPLY_WEB_SERVICES'
+          - >-
+            (sasd_web_services_server | default('none')) != 'both' or
+            (sasd_web_services_allow_dual_server | default(false) | bool)
+        fail_msg: >-
+          Apply mode requires SASD_APPLY_WEB_SERVICES. Running Apache and Nginx together
+          additionally requires sasd_web_services_allow_dual_server=true and non-conflicting ports.
+
+  roles:
+    - role: sasd_certificate_management
+      vars:
+        sasd_certificate_management_mode: "{{ sasd_web_services_mode | default('audit') }}"
+        sasd_certificate_management_apply_confirmation: >-
+          {{ sasd_web_services_apply_confirmation | default('') }}
+    - role: sasd_php
+      vars:
+        sasd_php_mode: "{{ sasd_web_services_mode | default('audit') }}"
+        sasd_php_apply_confirmation: "{{ sasd_web_services_apply_confirmation | default('') }}"
+    - role: sasd_apache
+      vars:
+        sasd_apache_mode: "{{ sasd_web_services_mode | default('audit') }}"
+        sasd_apache_apply_confirmation: "{{ sasd_web_services_apply_confirmation | default('') }}"
+        sasd_apache_manage: >-
+          {{ (sasd_apache_manage | default(false) | bool) and
+             (sasd_web_services_server | default('none')) in ['apache', 'both'] }}
+    - role: sasd_nginx
+      vars:
+        sasd_nginx_mode: "{{ sasd_web_services_mode | default('audit') }}"
+        sasd_nginx_apply_confirmation: "{{ sasd_web_services_apply_confirmation | default('') }}"
+        sasd_nginx_manage: >-
+          {{ (sasd_nginx_manage | default(false) | bool) and
+             (sasd_web_services_server | default('none')) in ['nginx', 'both'] }}
+
+  post_tasks:
+    - name: Web services | Build consolidated result
+      ansible.builtin.set_fact:
+        sasd_web_services_result:
+          schema: sasd.web-services.v1
+          host: "{{ inventory_hostname }}"
+          collected_at_utc: "{{ ansible_facts.date_time.iso8601 }}"
+          mode: "{{ sasd_web_services_mode | default('audit') }}"
+          selected_server: "{{ sasd_web_services_server | default('none') }}"
+          environment: "{{ sasd_environment | default('unspecified') }}"
+          certificates: "{{ sasd_certificate_management_result }}"
+          php: "{{ sasd_php_result }}"
+          apache: "{{ sasd_apache_result }}"
+          nginx: "{{ sasd_nginx_result }}"
+
+    - name: Web services | Create consolidated local report directory
+      ansible.builtin.file:
+        path: >-
+          {{ playbook_dir }}/../../{{ sasd_web_services_report_root |
+          default('reports/web-services') }}
+        state: directory
+        mode: "0750"
+      delegate_to: localhost
+      become: false
+      when: sasd_web_services_report_enabled | default(true) | bool
+
+    - name: Web services | Write consolidated local JSON report
+      ansible.builtin.copy:
+        content: "{{ sasd_web_services_result | to_nice_json }}\n"
+        dest: >-
+          {{ playbook_dir }}/../../{{ sasd_web_services_report_root |
+          default('reports/web-services') }}/{{ inventory_hostname }}.json
+        mode: "0640"
+      delegate_to: localhost
+      become: false
+      when: sasd_web_services_report_enabled | default(true) | bool

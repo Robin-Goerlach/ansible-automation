@@ -1,0 +1,88 @@
+---
+- name: PHP INI | Validate declaration
+  ansible.builtin.assert:
+    that:
+      - sasd_php_ini_file.path is defined
+      - >-
+        (sasd_php_ini_file.path is match(sasd_php_allowed_ini_path_patterns[0])) or
+        (sasd_php_ini_file.path is match(sasd_php_allowed_ini_path_patterns[1]))
+      - sasd_php_ini_file.state | default('present') in ['present', 'absent']
+      - sasd_php_ini_file.state | default('present') == 'absent' or sasd_php_ini_file.settings is defined
+      - sasd_php_ini_file.state | default('present') == 'absent' or sasd_php_ini_file.settings is mapping
+    fail_msg: "Invalid PHP INI declaration: {{ sasd_php_ini_file.path | default('missing path') }}"
+
+- name: PHP INI | Inspect current file
+  ansible.builtin.stat:
+    path: "{{ sasd_php_ini_file.path }}"
+  register: sasd_php_current_ini_stat
+
+- name: PHP INI | Capture current file for rollback
+  ansible.builtin.slurp:
+    src: "{{ sasd_php_ini_file.path }}"
+  register: sasd_php_current_ini_backup
+  when: sasd_php_current_ini_stat.stat.exists
+
+- name: PHP INI | Apply and validate declaration
+  block:
+    - name: PHP INI | Ensure parent directory exists
+      ansible.builtin.file:
+        path: "{{ sasd_php_ini_file.path | dirname }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+      when: sasd_php_ini_file.state | default('present') == 'present'
+
+    - name: PHP INI | Render managed settings
+      ansible.builtin.template:
+        src: php.ini.j2
+        dest: "{{ sasd_php_ini_file.path }}"
+        owner: root
+        group: root
+        mode: "0644"
+      notify: PHP | Reload FPM service
+      when: sasd_php_ini_file.state | default('present') == 'present'
+
+    - name: PHP INI | Remove retired settings file
+      ansible.builtin.file:
+        path: "{{ sasd_php_ini_file.path }}"
+        state: absent
+      notify: PHP | Reload FPM service
+      when: sasd_php_ini_file.state | default('present') == 'absent'
+
+    - name: PHP INI | Validate CLI startup after change
+      ansible.builtin.command:
+        argv: ["{{ sasd_php_cli_binary }}", -r, 'exit(0);']
+      changed_when: false
+      when:
+        - not ansible_check_mode
+        - sasd_php_cli_binary | length > 0
+
+    - name: PHP INI | Validate FPM configuration after change
+      ansible.builtin.command:
+        argv: ["{{ sasd_php_fpm_binary }}", -t]
+      changed_when: false
+      when:
+        - not ansible_check_mode
+        - sasd_php_fpm_binary | length > 0
+  rescue:
+    - name: PHP INI | Restore previous content
+      ansible.builtin.copy:
+        content: "{{ sasd_php_current_ini_backup.content | b64decode }}"
+        dest: "{{ sasd_php_ini_file.path }}"
+        owner: root
+        group: root
+        mode: "0644"
+      when: sasd_php_current_ini_stat.stat.exists
+
+    - name: PHP INI | Remove newly introduced invalid file
+      ansible.builtin.file:
+        path: "{{ sasd_php_ini_file.path }}"
+        state: absent
+      when: not sasd_php_current_ini_stat.stat.exists
+
+    - name: PHP INI | Stop after rollback
+      ansible.builtin.fail:
+        msg: >-
+          PHP validation failed after changing {{ sasd_php_ini_file.path }};
+          the previous file state was restored.

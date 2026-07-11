@@ -1,0 +1,23 @@
+---
+argument_specs:
+  main:
+    short_description: Inspect certificate files and remote TLS endpoints.
+    options:
+      sasd_certificate_diagnostics_files:
+        type: list
+        elements: dict
+      sasd_certificate_diagnostics_endpoints:
+        type: list
+        elements: dict
+      sasd_certificate_diagnostics_minimum_remaining_days:
+        type: int
+        default: 30
+      sasd_certificate_diagnostics_timeout_seconds:
+        type: int
+        default: 5
+      sasd_certificate_diagnostics_report_enabled:
+        type: bool
+        default: true
+      sasd_certificate_diagnostics_report_root:
+        type: str
+        default: reports/diagnostics/certificates

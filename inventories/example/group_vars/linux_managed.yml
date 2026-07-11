@@ -1,0 +1,4 @@
+---
+sasd_managed_node_minimum_python_major: 3
+sasd_diagnostics_write_local_reports: true
+sasd_diagnostics_report_root: reports/diagnostics

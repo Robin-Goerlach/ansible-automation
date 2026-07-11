@@ -1,0 +1,10 @@
+---
+- name: Audit or apply PHP runtime configuration
+  hosts: webservers
+  become: "{{ (sasd_web_services_mode | default('audit')) == 'apply' }}"
+  gather_facts: true
+  roles:
+    - role: sasd_php
+      vars:
+        sasd_php_mode: "{{ sasd_web_services_mode | default('audit') }}"
+        sasd_php_apply_confirmation: "{{ sasd_web_services_apply_confirmation | default('') }}"

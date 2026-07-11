@@ -1,0 +1,21 @@
+---
+# Safe Milestone 2 acceptance scenario.
+#
+# This composition intentionally targets the example inventory, whose only host
+# is localhost with a local connection. All baseline roles remain in audit mode,
+# so this playbook verifies behavior and report generation without changing the
+# operating system.
+- name: Import control-node validation
+  ansible.builtin.import_playbook: control-node.yml
+
+- name: Import connectivity validation
+  ansible.builtin.import_playbook: connectivity.yml
+
+- name: Import managed-node readiness validation
+  ansible.builtin.import_playbook: managed-node-readiness.yml
+
+- name: Import complete Linux baseline audit
+  ansible.builtin.import_playbook: ../provisioning/linux-baseline.yml
+
+- name: Import Linux update audit
+  ansible.builtin.import_playbook: ../maintenance/linux-updates.yml

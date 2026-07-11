@@ -1,0 +1,4 @@
+# Managed by SASD Ansible Automation. Local edits will be replaced.
+{% for key in item.authorized_keys | default([]) %}
+{{ key }}
+{% endfor %}

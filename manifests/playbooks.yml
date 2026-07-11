@@ -1,0 +1,242 @@
+---
+playbooks:
+  - id: SASD-M1-VAL-001
+    path: playbooks/validation/control-node.yml
+    category: validation
+    risk: 0
+    changes_managed_nodes: false
+    check_mode: full
+    description: Validate the Ansible control-node runtime and repository layout.
+  - id: SASD-M1-VAL-002
+    path: playbooks/validation/connectivity.yml
+    category: validation
+    risk: 0
+    changes_managed_nodes: false
+    check_mode: full
+    description: Verify that Ansible can execute a module on inventory hosts.
+  - id: SASD-M1-VAL-003
+    path: playbooks/validation/managed-node-readiness.yml
+    category: validation
+    risk: 0
+    changes_managed_nodes: false
+    check_mode: full
+    description: Validate Linux, Python, package manager, and privilege readiness.
+  - id: SASD-M1-BST-001
+    path: playbooks/bootstrap/managed-linux.yml
+    category: bootstrap
+    risk: 1
+    changes_managed_nodes: true
+    check_mode: none
+    description: Install Python 3 on supported Linux nodes when it is absent.
+  - id: SASD-M1-DIA-001
+    path: playbooks/diagnostics/system-overview.yml
+    category: diagnostics
+    risk: 0
+    changes_managed_nodes: false
+    check_mode: full
+    description: Collect a read-only system overview and save optional local JSON reports.
+  - id: SASD-M2-PRV-001
+    path: playbooks/provisioning/linux-baseline.yml
+    category: provisioning
+    risk: 2
+    changes_managed_nodes: explicit-opt-in
+    check_mode: supported
+    description: Audit or apply the complete Milestone 2 Linux baseline.
+  - id: SASD-M2-PRV-002
+    path: playbooks/provisioning/package-management.yml
+    category: provisioning
+    risk: 1
+    changes_managed_nodes: explicit-opt-in
+    check_mode: supported
+    description: Audit or apply package and repository-file configuration.
+  - id: SASD-M2-PRV-003
+    path: playbooks/provisioning/access-baseline.yml
+    category: provisioning
+    risk: 2
+    changes_managed_nodes: explicit-opt-in
+    check_mode: supported
+    description: Audit or apply users, groups, sudo, and optionally SSH.
+  - id: SASD-M2-PRV-004
+    path: playbooks/provisioning/operations-baseline.yml
+    category: provisioning
+    risk: 2
+    changes_managed_nodes: explicit-opt-in
+    check_mode: supported
+    description: Audit or apply time, logging, and optionally firewall configuration.
+  - id: SASD-M2-MNT-001
+    path: playbooks/maintenance/linux-updates.yml
+    category: maintenance
+    risk: 2
+    changes_managed_nodes: explicit-opt-in
+    check_mode: supported
+    description: Audit or apply safe/full package updates with no implicit reboot.
+  - id: SASD-M2-MNT-002
+    path: playbooks/maintenance/linux-reboot.yml
+    category: maintenance
+    risk: 3
+    changes_managed_nodes: explicit-token
+    check_mode: none
+    description: Reboot selected managed nodes only with an independent confirmation token.
+  - id: SASD-M2-VAL-001
+    path: playbooks/validation/linux-baseline.yml
+    category: validation
+    risk: 0
+    changes_managed_nodes: false
+    check_mode: full
+    description: Run the complete baseline in audit mode and validate result contracts.
+  - id: SASD-M2-DIA-001
+    path: playbooks/diagnostics/linux-baseline-status.yml
+    category: diagnostics
+    risk: 0
+    changes_managed_nodes: false
+    check_mode: full
+    description: Produce the complete consolidated Linux-baseline status report.
+  - id: SASD-M2-SITE-001
+    path: playbooks/site.yml
+    category: orchestration
+    risk: 2
+    changes_managed_nodes: explicit-opt-in
+    check_mode: supported
+    description: Validate readiness and run the Milestone 2 Linux baseline.
+
+  - id: SASD-M3-PRV-001
+    path: playbooks/provisioning/web-services.yml
+    category: provisioning
+    risk: 2
+    changes_managed_nodes: explicit-opt-in
+    check_mode: supported
+    description: Audit or apply the complete Milestone 3 web-services stack.
+  - id: SASD-M3-PRV-002
+    path: playbooks/provisioning/apache-webserver.yml
+    category: provisioning
+    risk: 2
+    changes_managed_nodes: explicit-opt-in
+    check_mode: supported
+    description: Audit or apply Apache packages, service, modules, and virtual hosts.
+  - id: SASD-M3-PRV-003
+    path: playbooks/provisioning/nginx-webserver.yml
+    category: provisioning
+    risk: 2
+    changes_managed_nodes: explicit-opt-in
+    check_mode: supported
+    description: Audit or apply Nginx packages, service, and virtual hosts.
+  - id: SASD-M3-PRV-004
+    path: playbooks/provisioning/php-runtime.yml
+    category: provisioning
+    risk: 2
+    changes_managed_nodes: explicit-opt-in
+    check_mode: supported
+    description: Audit or apply PHP packages, extensions, FPM, and INI drop-ins.
+  - id: SASD-M3-PRV-005
+    path: playbooks/provisioning/tls-certificates.yml
+    category: provisioning
+    risk: 2
+    changes_managed_nodes: explicit-opt-in
+    check_mode: supported
+    description: Audit or apply guarded TLS certificate and private-key material.
+  - id: SASD-M3-DIA-001
+    path: playbooks/diagnostics/web-services-status.yml
+    category: diagnostics
+    risk: 0
+    changes_managed_nodes: false
+    check_mode: full
+    description: Collect consolidated Apache, Nginx, PHP, and certificate status.
+  - id: SASD-M3-VAL-001
+    path: playbooks/validation/web-services.yml
+    category: validation
+    risk: 0
+    changes_managed_nodes: false
+    check_mode: full
+    description: Validate all Milestone 3 role result contracts in audit mode.
+  - id: SASD-M3-VAL-002
+    path: playbooks/validation/web-endpoints.yml
+    category: validation
+    risk: 0
+    changes_managed_nodes: false
+    check_mode: full
+    description: Validate declared HTTP and HTTPS endpoints and status codes.
+  - id: SASD-M3-SITE-001
+    path: playbooks/site-web.yml
+    category: orchestration
+    risk: 2
+    changes_managed_nodes: explicit-opt-in
+    check_mode: supported
+    description: Validate readiness and run the Milestone 3 web-services stack.
+
+  - id: SASD-M4-DIA-001
+    path: playbooks/diagnostics/resources.yml
+    category: diagnostics
+    risk: 0
+    changes_managed_nodes: false
+    check_mode: full
+    description: Collect CPU, memory, swap, filesystem, inode, and process diagnostics.
+  - id: SASD-M4-DIA-002
+    path: playbooks/diagnostics/services.yml
+    category: diagnostics
+    risk: 0
+    changes_managed_nodes: false
+    check_mode: full
+    description: Collect service inventory, failed units, and monitored service state.
+  - id: SASD-M4-DIA-003
+    path: playbooks/diagnostics/packages.yml
+    category: diagnostics
+    risk: 0
+    changes_managed_nodes: false
+    check_mode: full
+    description: Collect package inventory, pending updates, locks, and reboot state.
+  - id: SASD-M4-DIA-004
+    path: playbooks/diagnostics/network.yml
+    category: diagnostics
+    risk: 0
+    changes_managed_nodes: false
+    check_mode: full
+    description: Collect interfaces, routes, resolver state, sockets, DNS, and TCP checks.
+  - id: SASD-M4-DIA-005
+    path: playbooks/diagnostics/certificates.yml
+    category: diagnostics
+    risk: 0
+    changes_managed_nodes: false
+    check_mode: full
+    description: Inspect declared certificate files and TLS endpoints.
+  - id: SASD-M4-DIA-006
+    path: playbooks/diagnostics/incident-snapshot.yml
+    category: diagnostics
+    risk: 0
+    changes_managed_nodes: false
+    check_mode: full
+    description: Produce a correlated diagnostics run and per-host summary.
+  - id: SASD-M4-DIA-009
+    path: playbooks/diagnostics/aggregate-reports.yml
+    category: diagnostics
+    risk: 0
+    changes_managed_nodes: false
+    check_mode: supported
+    description: Rebuild a correlated summary from existing controller-side component reports.
+  - id: SASD-M4-DIA-007
+    path: playbooks/diagnostics/build-bundle.yml
+    category: diagnostics
+    risk: 0
+    changes_managed_nodes: false
+    check_mode: supported
+    description: Build a sanitized checksummed archive for an existing run.
+  - id: SASD-M4-DIA-008
+    path: playbooks/diagnostics/full-diagnostic-bundle.yml
+    category: orchestration
+    risk: 0
+    changes_managed_nodes: false
+    check_mode: supported
+    description: Collect an incident snapshot and build its controller-side archive.
+  - id: SASD-M4-VAL-001
+    path: playbooks/validation/diagnostics.yml
+    category: validation
+    risk: 0
+    changes_managed_nodes: false
+    check_mode: full
+    description: Validate all Milestone 4 role result contracts.
+  - id: SASD-M4-SITE-001
+    path: playbooks/site-diagnostics.yml
+    category: orchestration
+    risk: 0
+    changes_managed_nodes: false
+    check_mode: supported
+    description: Site entry point for snapshot collection and bundle creation.

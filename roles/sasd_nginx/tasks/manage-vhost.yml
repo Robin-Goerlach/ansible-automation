@@ -1,0 +1,133 @@
+---
+- name: Nginx vhost | Validate declaration
+  ansible.builtin.assert:
+    that:
+      - sasd_nginx_vhost.name is defined
+      - sasd_nginx_vhost.name is match(sasd_nginx_allowed_vhost_name_pattern)
+      - sasd_nginx_vhost.state | default('present') in ['present', 'absent']
+      - sasd_nginx_vhost.state | default('present') == 'absent' or sasd_nginx_vhost.server_name is defined
+      - sasd_nginx_vhost.state | default('present') == 'absent' or sasd_nginx_vhost.document_root is defined
+      - >-
+        sasd_nginx_vhost.state | default('present') == 'absent' or
+        sasd_nginx_vhost.document_root is match(sasd_nginx_allowed_document_root_pattern)
+      - sasd_nginx_vhost.port | default(80) | int >= 1
+      - sasd_nginx_vhost.port | default(80) | int <= 65535
+      - >-
+        not (sasd_nginx_vhost.tls | default(false)) or
+        (sasd_nginx_vhost.certificate_path is defined and sasd_nginx_vhost.private_key_path is defined)
+    fail_msg: "Invalid Nginx virtual-host declaration: {{ sasd_nginx_vhost.name | default('unnamed') }}"
+
+- name: Nginx vhost | Derive managed paths
+  ansible.builtin.set_fact:
+    sasd_nginx_current_config_path: >-
+      {{ sasd_nginx_vhost_available_dir }}/{{ sasd_nginx_vhost.name }}.conf
+    sasd_nginx_current_enabled_path: >-
+      {{ sasd_nginx_vhost_enabled_dir }}/{{ sasd_nginx_vhost.name }}.conf
+
+- name: Nginx vhost | Inspect current configuration
+  ansible.builtin.stat:
+    path: "{{ sasd_nginx_current_config_path }}"
+  register: sasd_nginx_current_config_stat
+
+- name: Nginx vhost | Capture current configuration for rollback
+  ansible.builtin.slurp:
+    src: "{{ sasd_nginx_current_config_path }}"
+  register: sasd_nginx_current_config_backup
+  when: sasd_nginx_current_config_stat.stat.exists
+
+- name: Nginx vhost | Inspect current enablement link
+  ansible.builtin.stat:
+    path: "{{ sasd_nginx_current_enabled_path }}"
+  register: sasd_nginx_current_enabled_stat
+  when: sasd_nginx_vhost_enabled_dir != sasd_nginx_vhost_available_dir
+
+- name: Nginx vhost | Apply and validate declaration
+  block:
+    - name: Nginx vhost | Ensure document root exists
+      ansible.builtin.file:
+        path: "{{ sasd_nginx_vhost.document_root }}"
+        state: directory
+        owner: "{{ sasd_nginx_vhost.document_root_owner | default('root') }}"
+        group: "{{ sasd_nginx_vhost.document_root_group | default('root') }}"
+        mode: "{{ sasd_nginx_vhost.document_root_mode | default('0755') }}"
+      when: sasd_nginx_vhost.state | default('present') == 'present'
+
+    - name: Nginx vhost | Render configuration
+      ansible.builtin.template:
+        src: virtual-host.conf.j2
+        dest: "{{ sasd_nginx_current_config_path }}"
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Nginx | Reload service
+      when: sasd_nginx_vhost.state | default('present') == 'present'
+
+    - name: Nginx vhost | Enable configuration
+      ansible.builtin.file:
+        src: "{{ sasd_nginx_current_config_path }}"
+        dest: "{{ sasd_nginx_current_enabled_path }}"
+        state: link
+      notify: Nginx | Reload service
+      when:
+        - sasd_nginx_vhost.state | default('present') == 'present'
+        - sasd_nginx_vhost_enabled_dir != sasd_nginx_vhost_available_dir
+
+    - name: Nginx vhost | Remove enablement link
+      ansible.builtin.file:
+        path: "{{ sasd_nginx_current_enabled_path }}"
+        state: absent
+      notify: Nginx | Reload service
+      when:
+        - sasd_nginx_vhost.state | default('present') == 'absent'
+        - sasd_nginx_vhost_enabled_dir != sasd_nginx_vhost_available_dir
+
+    - name: Nginx vhost | Remove retired configuration
+      ansible.builtin.file:
+        path: "{{ sasd_nginx_current_config_path }}"
+        state: absent
+      notify: Nginx | Reload service
+      when: sasd_nginx_vhost.state | default('present') == 'absent'
+
+    - name: Nginx vhost | Validate complete Nginx configuration
+      ansible.builtin.command:
+        argv: ["{{ sasd_nginx_binary }}", -t]
+      changed_when: false
+      when: not ansible_check_mode
+  rescue:
+    - name: Nginx vhost | Restore previous configuration content
+      ansible.builtin.copy:
+        content: "{{ sasd_nginx_current_config_backup.content | b64decode }}"
+        dest: "{{ sasd_nginx_current_config_path }}"
+        owner: root
+        group: root
+        mode: "0644"
+      when: sasd_nginx_current_config_stat.stat.exists
+
+    - name: Nginx vhost | Remove newly introduced invalid configuration
+      ansible.builtin.file:
+        path: "{{ sasd_nginx_current_config_path }}"
+        state: absent
+      when: not sasd_nginx_current_config_stat.stat.exists
+
+    - name: Nginx vhost | Restore previous enablement link
+      ansible.builtin.file:
+        src: "{{ sasd_nginx_current_config_path }}"
+        dest: "{{ sasd_nginx_current_enabled_path }}"
+        state: link
+      when:
+        - sasd_nginx_vhost_enabled_dir != sasd_nginx_vhost_available_dir
+        - sasd_nginx_current_enabled_stat.stat.exists | default(false)
+
+    - name: Nginx vhost | Remove newly introduced enablement link
+      ansible.builtin.file:
+        path: "{{ sasd_nginx_current_enabled_path }}"
+        state: absent
+      when:
+        - sasd_nginx_vhost_enabled_dir != sasd_nginx_vhost_available_dir
+        - not (sasd_nginx_current_enabled_stat.stat.exists | default(false))
+
+    - name: Nginx vhost | Stop after rollback
+      ansible.builtin.fail:
+        msg: >-
+          Nginx configuration validation failed for {{ sasd_nginx_vhost.name }};
+          the previous file and enablement state were restored.

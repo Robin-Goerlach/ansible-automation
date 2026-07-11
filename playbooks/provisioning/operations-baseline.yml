@@ -1,0 +1,21 @@
+---
+- name: Audit or apply Linux operational baseline
+  hosts: linux_managed
+  become: "{{ sasd_linux_baseline_mode == 'apply' }}"
+  gather_facts: true
+  vars:
+    sasd_linux_baseline_mode: audit
+    sasd_linux_baseline_apply_confirmation: ""
+  roles:
+    - role: sasd_time_synchronization
+      vars:
+        sasd_time_synchronization_mode: "{{ sasd_linux_baseline_mode }}"
+        sasd_time_synchronization_apply_confirmation: "{{ sasd_linux_baseline_apply_confirmation }}"
+    - role: sasd_log_management
+      vars:
+        sasd_log_management_mode: "{{ sasd_linux_baseline_mode }}"
+        sasd_log_management_apply_confirmation: "{{ sasd_linux_baseline_apply_confirmation }}"
+    - role: sasd_firewall
+      vars:
+        sasd_firewall_mode: "{{ sasd_linux_baseline_mode }}"
+        sasd_firewall_apply_confirmation: "{{ sasd_linux_baseline_apply_confirmation }}"

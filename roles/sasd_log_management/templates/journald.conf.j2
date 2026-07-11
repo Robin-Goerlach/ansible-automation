@@ -1,0 +1,7 @@
+# Managed by SASD Ansible Automation.
+[Journal]
+Storage={{ sasd_log_management_journal_storage }}
+SystemMaxUse={{ sasd_log_management_system_max_use }}
+RuntimeMaxUse={{ sasd_log_management_runtime_max_use }}
+MaxRetentionSec={{ sasd_log_management_max_retention_sec }}
+Compress={{ sasd_log_management_compress | ternary('yes', 'no') }}

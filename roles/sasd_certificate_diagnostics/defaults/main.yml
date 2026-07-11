@@ -1,0 +1,7 @@
+---
+sasd_certificate_diagnostics_files: []
+sasd_certificate_diagnostics_endpoints: []
+sasd_certificate_diagnostics_minimum_remaining_days: 30
+sasd_certificate_diagnostics_timeout_seconds: 5
+sasd_certificate_diagnostics_report_enabled: true
+sasd_certificate_diagnostics_report_root: reports/diagnostics/certificates

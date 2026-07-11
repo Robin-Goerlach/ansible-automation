@@ -1,0 +1,114 @@
+---
+- name: Log management | Validate safety and settings
+  ansible.builtin.assert:
+    that:
+      - sasd_log_management_mode in ['audit', 'apply']
+      - sasd_log_management_journal_storage in ['auto', 'volatile', 'persistent', 'none']
+      - sasd_log_management_logrotate_entries is iterable
+      - >-
+        sasd_log_management_mode == 'audit' or
+        sasd_log_management_apply_confirmation == 'SASD_APPLY_LINUX_BASELINE'
+    fail_msg: Invalid logging configuration or missing Milestone 2 confirmation token.
+
+- name: Log management | Validate logrotate declarations
+  ansible.builtin.assert:
+    that:
+      - item.name is defined
+      - item.name is match('^[A-Za-z0-9_.-]+$')
+      - item.paths is defined
+      - item.paths | length > 0
+  loop: "{{ sasd_log_management_logrotate_entries }}"
+  loop_control:
+    label: "{{ item.name | default('missing-name') }}"
+
+- name: Log management | Inspect journald baseline drop-in
+  ansible.builtin.stat:
+    path: /etc/systemd/journald.conf.d/60-sasd-baseline.conf
+  register: sasd_log_management_journald_stat
+
+- name: Log management | Collect journal disk usage
+  ansible.builtin.command:
+    argv: [journalctl, --disk-usage]
+  register: sasd_log_management_journal_usage
+  changed_when: false
+  failed_when: false
+
+- name: Log management | Install logrotate
+  ansible.builtin.package:
+    name: logrotate
+    state: present
+  when:
+    - sasd_log_management_mode == 'apply'
+    - sasd_log_management_manage | bool
+
+- name: Log management | Ensure journald drop-in directory exists
+  ansible.builtin.file:
+    path: /etc/systemd/journald.conf.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  when:
+    - sasd_log_management_mode == 'apply'
+    - sasd_log_management_manage | bool
+
+- name: Log management | Configure journald limits
+  ansible.builtin.template:
+    src: journald.conf.j2
+    dest: /etc/systemd/journald.conf.d/60-sasd-baseline.conf
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+  notify: Log management | Restart journald
+  when:
+    - sasd_log_management_mode == 'apply'
+    - sasd_log_management_manage | bool
+
+- name: Log management | Ensure persistent journal directory exists
+  ansible.builtin.file:
+    path: /var/log/journal
+    state: directory
+    owner: root
+    group: systemd-journal
+    mode: "2755"
+  when:
+    - sasd_log_management_mode == 'apply'
+    - sasd_log_management_manage | bool
+    - sasd_log_management_journal_storage == 'persistent'
+
+- name: Log management | Write declared logrotate policies
+  ansible.builtin.template:
+    src: logrotate-entry.j2
+    dest: "/etc/logrotate.d/{{ item.name }}"
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+  loop: "{{ sasd_log_management_logrotate_entries }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when:
+    - sasd_log_management_mode == 'apply'
+    - sasd_log_management_manage | bool
+
+- name: Log management | Build audit result
+  ansible.builtin.set_fact:
+    sasd_log_management_result:
+      schema: sasd.log-management.v1
+      host: "{{ inventory_hostname }}"
+      collected_at_utc: "{{ ansible_facts.date_time.iso8601 }}"
+      mode: "{{ sasd_log_management_mode }}"
+      manage_enabled: "{{ sasd_log_management_manage | bool }}"
+      requested_journal_storage: "{{ sasd_log_management_journal_storage }}"
+      journald_drop_in_present: "{{ sasd_log_management_journald_stat.stat.exists }}"
+      journal_disk_usage: "{{ sasd_log_management_journal_usage.stdout | default('unavailable') }}"
+      declared_logrotate_entries: "{{ sasd_log_management_logrotate_entries | map(attribute='name') | list }}"
+
+- name: Log management | Write local JSON report
+  ansible.builtin.include_tasks: ../../sasd_system_baseline/tasks/write-report.yml
+  vars:
+    sasd_report_enabled: "{{ sasd_log_management_report_enabled }}"
+    sasd_report_root: "{{ sasd_log_management_report_root }}"
+    sasd_report_payload: "{{ sasd_log_management_result }}"
+    sasd_report_filename: "{{ inventory_hostname }}.json"

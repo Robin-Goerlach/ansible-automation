@@ -1,0 +1,100 @@
+---
+# Purpose: produce one correlated diagnostic snapshot across all Milestone 4 domains.
+# Safety: managed-node tasks are read-only. Reports are written only on the controller.
+- name: Initialize a shared diagnostics run identifier
+  hosts: localhost
+  gather_facts: true
+  become: false
+
+  tasks:
+    - name: Incident snapshot | Freeze controller run identifier
+      ansible.builtin.set_fact:
+        sasd_diagnostics_run_id_effective: >-
+          {{ sasd_diagnostics_run_id | default(ansible_facts.date_time.iso8601_basic_short, true) }}
+
+    - name: Incident snapshot | Validate run identifier
+      ansible.builtin.assert:
+        that:
+          - sasd_diagnostics_run_id_effective is match('^[A-Za-z0-9._-]+$')
+        fail_msg: The diagnostics run ID may contain only letters, digits, dot, underscore, and hyphen.
+
+- name: Collect a correlated Linux incident snapshot
+  hosts: linux_managed
+  gather_facts: true
+  become: false
+
+  pre_tasks:
+    - name: Incident snapshot | Adopt controller run identifier
+      ansible.builtin.set_fact:
+        sasd_diagnostics_run_id_effective: >-
+          {{ hostvars['localhost'].sasd_diagnostics_run_id_effective }}
+        sasd_diagnostics_host_report_root: >-
+          {{
+            sasd_diagnostics_report_root | default('reports/diagnostics')
+            ~ '/' ~ hostvars['localhost'].sasd_diagnostics_run_id_effective
+            ~ '/' ~ inventory_hostname
+          }}
+
+  roles:
+    - role: sasd_resource_diagnostics
+      vars:
+        sasd_resource_diagnostics_report_root: "{{ sasd_diagnostics_host_report_root }}"
+    - role: sasd_service_diagnostics
+      vars:
+        sasd_service_diagnostics_report_root: "{{ sasd_diagnostics_host_report_root }}"
+    - role: sasd_package_diagnostics
+      vars:
+        sasd_package_diagnostics_report_root: "{{ sasd_diagnostics_host_report_root }}"
+    - role: sasd_network_diagnostics
+      vars:
+        sasd_network_diagnostics_report_root: "{{ sasd_diagnostics_host_report_root }}"
+    - role: sasd_certificate_diagnostics
+      vars:
+        sasd_certificate_diagnostics_report_root: "{{ sasd_diagnostics_host_report_root }}"
+
+  tasks:
+    - name: Incident snapshot | Aggregate issues
+      ansible.builtin.set_fact:
+        sasd_diagnostics_all_issues: >-
+          {{
+            sasd_resource_diagnostics_result.issues
+            + sasd_service_diagnostics_result.issues
+            + sasd_package_diagnostics_result.issues
+            + sasd_network_diagnostics_result.issues
+            + sasd_certificate_diagnostics_result.issues
+          }}
+
+    - name: Incident snapshot | Build summary contract
+      ansible.builtin.set_fact:
+        sasd_diagnostics_summary_result:
+          schema: sasd.diagnostics.summary.v1
+          run_id: "{{ sasd_diagnostics_run_id_effective }}"
+          host: "{{ inventory_hostname }}"
+          collected_at_utc: "{{ ansible_facts.date_time.iso8601 }}"
+          platform:
+            distribution: "{{ ansible_facts.distribution }}"
+            version: "{{ ansible_facts.distribution_version }}"
+            architecture: "{{ ansible_facts.architecture }}"
+            kernel: "{{ ansible_facts.kernel }}"
+          status: >-
+            {{
+              'critical'
+              if sasd_diagnostics_all_issues | selectattr('severity', 'equalto', 'critical') | list | length > 0
+              else ('warning' if sasd_diagnostics_all_issues | length > 0 else 'ok')
+            }}
+          issue_count: "{{ sasd_diagnostics_all_issues | length }}"
+          issues: "{{ sasd_diagnostics_all_issues }}"
+          component_status:
+            resources: "{{ sasd_resource_diagnostics_result.status }}"
+            services: "{{ sasd_service_diagnostics_result.status }}"
+            packages: "{{ sasd_package_diagnostics_result.status }}"
+            network: "{{ sasd_network_diagnostics_result.status }}"
+            certificates: "{{ sasd_certificate_diagnostics_result.status }}"
+
+    - name: Incident snapshot | Write summary report
+      ansible.builtin.include_tasks: ../../roles/sasd_system_baseline/tasks/write-report.yml
+      vars:
+        sasd_report_enabled: true
+        sasd_report_root: "{{ sasd_diagnostics_host_report_root }}"
+        sasd_report_payload: "{{ sasd_diagnostics_summary_result }}"
+        sasd_report_filename: summary.json

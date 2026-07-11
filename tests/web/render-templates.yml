@@ -1,0 +1,106 @@
+---
+- name: Render Milestone 3 templates without touching system configuration
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    sasd_template_test_root: "{{ playbook_dir }}/../../reports/milestone-3-template-test"
+  tasks:
+    - name: Template test | Reset output directory
+      ansible.builtin.file:
+        path: "{{ sasd_template_test_root }}"
+        state: absent
+
+    - name: Template test | Create output directory
+      ansible.builtin.file:
+        path: "{{ sasd_template_test_root }}"
+        state: directory
+        mode: "0750"
+
+    - name: Template test | Render Apache HTTP virtual host
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/../../roles/sasd_apache/templates/virtual-host.conf.j2"
+        dest: "{{ sasd_template_test_root }}/apache-http.conf"
+        mode: "0640"
+      vars:
+        sasd_apache_vhost:
+          name: example-http
+          server_name: example.test
+          server_aliases: [www.example.test]
+          port: 80
+          document_root: /var/www/example.test
+
+    - name: Template test | Render Apache TLS virtual host
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/../../roles/sasd_apache/templates/virtual-host.conf.j2"
+        dest: "{{ sasd_template_test_root }}/apache-tls.conf"
+        mode: "0640"
+      vars:
+        sasd_apache_vhost:
+          name: example-tls
+          server_name: secure.example.test
+          port: 443
+          document_root: /var/www/secure.example.test
+          tls: true
+          certificate_path: /etc/ssl/certs/secure.example.test.crt
+          private_key_path: /etc/ssl/private/secure.example.test.key
+
+    - name: Template test | Render Nginx HTTP virtual host
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/../../roles/sasd_nginx/templates/virtual-host.conf.j2"
+        dest: "{{ sasd_template_test_root }}/nginx-http.conf"
+        mode: "0640"
+      vars:
+        sasd_nginx_vhost:
+          name: example-http
+          server_name: example.test
+          server_aliases: [www.example.test]
+          port: 80
+          document_root: /var/www/example.test
+
+    - name: Template test | Render Nginx TLS/PHP virtual host
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/../../roles/sasd_nginx/templates/virtual-host.conf.j2"
+        dest: "{{ sasd_template_test_root }}/nginx-tls-php.conf"
+        mode: "0640"
+      vars:
+        sasd_nginx_vhost:
+          name: example-tls
+          server_name: secure.example.test
+          port: 443
+          document_root: /var/www/secure.example.test
+          tls: true
+          certificate_path: /etc/ssl/certs/secure.example.test.crt
+          private_key_path: /etc/ssl/private/secure.example.test.key
+          php_fpm_socket: /run/php/php-fpm.sock
+
+    - name: Template test | Render PHP INI drop-in
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/../../roles/sasd_php/templates/php.ini.j2"
+        dest: "{{ sasd_template_test_root }}/99-sasd.ini"
+        mode: "0640"
+      vars:
+        sasd_php_ini_file:
+          settings:
+            expose_php: "Off"
+            memory_limit: 256M
+
+    - name: Template test | Read rendered files
+      ansible.builtin.slurp:
+        src: "{{ item }}"
+      loop:
+        - "{{ sasd_template_test_root }}/apache-http.conf"
+        - "{{ sasd_template_test_root }}/apache-tls.conf"
+        - "{{ sasd_template_test_root }}/nginx-http.conf"
+        - "{{ sasd_template_test_root }}/nginx-tls-php.conf"
+        - "{{ sasd_template_test_root }}/99-sasd.ini"
+      register: sasd_template_test_files
+
+    - name: Template test | Assert expected directives
+      ansible.builtin.assert:
+        that:
+          - "'ServerName example.test' in (sasd_template_test_files.results[0].content | b64decode)"
+          - "'SSLEngine on' in (sasd_template_test_files.results[1].content | b64decode)"
+          - "'server_name example.test www.example.test;' in (sasd_template_test_files.results[2].content | b64decode)"
+          - "'fastcgi_pass unix:/run/php/php-fpm.sock;' in (sasd_template_test_files.results[3].content | b64decode)"
+          - "'memory_limit = 256M' in (sasd_template_test_files.results[4].content | b64decode)"

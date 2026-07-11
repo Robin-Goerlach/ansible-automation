@@ -1,0 +1,8 @@
+---
+- name: Time synchronization | Restart selected provider
+  ansible.builtin.service:
+    name: >-
+      {{ sasd_time_synchronization_service[sasd_time_synchronization_resolved_provider]
+         [ansible_facts.os_family] }}
+    state: restarted
+  when: not ansible_check_mode

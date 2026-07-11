@@ -1,0 +1,46 @@
+---
+- name: Firewall firewalld | Query declared permanent ports
+  ansible.builtin.command:
+    argv:
+      - firewall-cmd
+      - --permanent
+      - "--query-port={{ item.port }}/{{ item.protocol | default('tcp') }}"
+  loop: "{{ sasd_firewall_rules }}"
+  loop_control:
+    label: "{{ item.port }}/{{ item.protocol | default('tcp') }}"
+  register: sasd_firewall_firewalld_queries
+  changed_when: false
+  failed_when: sasd_firewall_firewalld_queries.rc not in [0, 1]
+  when: item.action | default('allow') == 'allow'
+
+- name: Firewall firewalld | Add missing permanent ports
+  ansible.builtin.command:
+    argv:
+      - firewall-cmd
+      - --permanent
+      - "--add-port={{ item.item.port }}/{{ item.item.protocol | default('tcp') }}"
+  loop: "{{ sasd_firewall_firewalld_queries.results | default([]) }}"
+  loop_control:
+    label: "{{ item.item.port }}/{{ item.item.protocol | default('tcp') }}"
+  when:
+    - not item.skipped | default(false)
+    - item.rc == 1
+  register: sasd_firewall_firewalld_add_results
+  changed_when: true
+
+- name: Firewall firewalld | Reload after permanent changes
+  ansible.builtin.command:
+    argv: [firewall-cmd, --reload]
+  when: >-
+    sasd_firewall_firewalld_add_results.results | default([]) |
+    rejectattr('skipped', 'defined') | list | length > 0
+  changed_when: true
+
+- name: Firewall firewalld | Explain unsupported deny/reject declaration
+  ansible.builtin.fail:
+    msg: >-
+      The Milestone 2 firewalld adapter supports allow-port rules only.
+      Use a direct rich-rule extension in a later controlled change.
+  when: >-
+    sasd_firewall_rules | rejectattr('action', 'undefined') |
+    rejectattr('action', 'equalto', 'allow') | list | length > 0

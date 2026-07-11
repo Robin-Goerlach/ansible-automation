@@ -1,0 +1,13 @@
+---
+sasd_package_diagnostics_selected_packages: []
+sasd_package_diagnostics_collect_pending_updates: true
+sasd_package_diagnostics_maximum_update_items: 100
+sasd_package_diagnostics_report_enabled: true
+sasd_package_diagnostics_report_root: reports/diagnostics/packages
+sasd_package_diagnostics_lock_paths:
+  - /var/lib/dpkg/lock
+  - /var/lib/dpkg/lock-frontend
+  - /var/lib/rpm/.rpm.lock
+  - /var/run/yum.pid
+  - /var/run/dnf.pid
+  - /var/run/zypp.pid

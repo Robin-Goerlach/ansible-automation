@@ -1,0 +1,16 @@
+---
+# Purpose: collect a complete incident snapshot and archive it in one invocation.
+# Safety: target collection is read-only; archive creation occurs on the controller.
+- name: Import the incident snapshot playbook
+  ansible.builtin.import_playbook: incident-snapshot.yml
+
+- name: Archive the completed diagnostics run
+  hosts: localhost
+  gather_facts: false
+  become: false
+
+  roles:
+    - role: sasd_diagnostic_bundle
+      vars:
+        sasd_diagnostic_bundle_run_id: >-
+          {{ hostvars['localhost'].sasd_diagnostics_run_id_effective }}

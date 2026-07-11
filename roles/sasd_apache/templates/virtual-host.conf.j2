@@ -1,0 +1,29 @@
+# Managed by SASD Ansible Automation. Local edits will be overwritten.
+<VirtualHost {{ sasd_apache_vhost.address | default('*') }}:{{ sasd_apache_vhost.port | default(80) }}>
+    ServerName {{ sasd_apache_vhost.server_name }}
+{% for alias in sasd_apache_vhost.server_aliases | default([]) %}
+    ServerAlias {{ alias }}
+{% endfor %}
+    DocumentRoot {{ sasd_apache_vhost.document_root }}
+
+    <Directory {{ sasd_apache_vhost.document_root }}>
+        Options {{ sasd_apache_vhost.directory_options | default('FollowSymLinks') }}
+        AllowOverride {{ sasd_apache_vhost.allow_override | default('None') }}
+        Require all granted
+    </Directory>
+
+    ErrorLog {{ sasd_apache_vhost.error_log | default((sasd_apache_log_dir | default('/var/log/apache2')) ~ '/' ~ sasd_apache_vhost.name ~ '-error.log') }}
+    CustomLog {{ sasd_apache_vhost.access_log | default((sasd_apache_log_dir | default('/var/log/apache2')) ~ '/' ~ sasd_apache_vhost.name ~ '-access.log') }} combined
+{% if sasd_apache_vhost.tls | default(false) %}
+
+    SSLEngine on
+    SSLCertificateFile {{ sasd_apache_vhost.certificate_path }}
+    SSLCertificateKeyFile {{ sasd_apache_vhost.private_key_path }}
+{% if sasd_apache_vhost.certificate_chain_path | default('') | length > 0 %}
+    SSLCertificateChainFile {{ sasd_apache_vhost.certificate_chain_path }}
+{% endif %}
+{% endif %}
+{% for directive in sasd_apache_vhost.extra_directives | default([]) %}
+    {{ directive }}
+{% endfor %}
+</VirtualHost>

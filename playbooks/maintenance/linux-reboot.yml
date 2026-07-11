@@ -1,0 +1,23 @@
+---
+- name: Explicitly reboot selected Linux managed nodes
+  hosts: linux_managed
+  become: true
+  gather_facts: false
+  serial: "{{ sasd_reboot_serial | default(1) }}"
+  vars:
+    sasd_reboot_confirmation: ""
+    sasd_reboot_timeout: 900
+
+  pre_tasks:
+    - name: Linux reboot | Require independent confirmation token
+      ansible.builtin.assert:
+        that:
+          - sasd_reboot_confirmation == 'SASD_REBOOT_MANAGED_NODES'
+        fail_msg: Reboot refused. Supply the exact token SASD_REBOOT_MANAGED_NODES.
+
+  tasks:
+    - name: Linux reboot | Reboot and wait for the managed node
+      ansible.builtin.reboot:
+        msg: Reboot initiated by SASD Ansible Automation.
+        reboot_timeout: "{{ sasd_reboot_timeout }}"
+        test_command: whoami

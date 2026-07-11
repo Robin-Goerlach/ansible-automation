@@ -1,0 +1,15 @@
+---
+sasd_nginx_packages_by_family:
+  Debian: [nginx]
+  RedHat: [nginx]
+  Suse: [nginx]
+sasd_nginx_vhost_available_dir_by_family:
+  Debian: /etc/nginx/sites-available
+  RedHat: /etc/nginx/conf.d
+  Suse: /etc/nginx/vhosts.d
+sasd_nginx_vhost_enabled_dir_by_family:
+  Debian: /etc/nginx/sites-enabled
+  RedHat: /etc/nginx/conf.d
+  Suse: /etc/nginx/vhosts.d
+sasd_nginx_allowed_vhost_name_pattern: '^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$'
+sasd_nginx_allowed_document_root_pattern: '^/var/www(/[A-Za-z0-9_.-]+)*$'

@@ -1,0 +1,158 @@
+---
+- name: Service diagnostics | Validate platform
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.system == 'Linux'
+    fail_msg: Service diagnostics currently support Linux managed nodes.
+
+- name: Service diagnostics | Collect service facts
+  ansible.builtin.service_facts:
+  register: sasd_service_diagnostics_facts_call
+  failed_when: false
+
+- name: Service diagnostics | Query failed systemd units
+  ansible.builtin.command:
+    argv:
+      - systemctl
+      - --failed
+      - --no-legend
+      - --plain
+      - --no-pager
+  register: sasd_service_diagnostics_systemd_failed
+  changed_when: false
+  check_mode: false
+  failed_when: false
+  when: ansible_facts.service_mgr == 'systemd'
+
+- name: Service diagnostics | Normalize discovered services
+  ansible.builtin.set_fact:
+    sasd_service_diagnostics_inventory: "{{ ansible_facts.services | default({}) }}"
+    sasd_service_diagnostics_failed_from_facts: []
+    sasd_service_diagnostics_monitored_results: []
+
+- name: Service diagnostics | Record failed services from facts
+  ansible.builtin.set_fact:
+    sasd_service_diagnostics_failed_from_facts: >-
+      {{ sasd_service_diagnostics_failed_from_facts + [item.key] }}
+  loop: "{{ sasd_service_diagnostics_inventory | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+  when:
+    - item.value.state | default('unknown') == 'failed' or
+      item.value.status | default('unknown') == 'failed'
+
+- name: Service diagnostics | Record monitored service state
+  ansible.builtin.set_fact:
+    sasd_service_diagnostics_monitored_results: >-
+      {{
+        sasd_service_diagnostics_monitored_results
+        + [
+            {
+              'name': item,
+              'found': item in sasd_service_diagnostics_inventory,
+              'state': (
+                sasd_service_diagnostics_inventory[item].state
+                if item in sasd_service_diagnostics_inventory else 'missing'
+              ),
+              'status': (
+                sasd_service_diagnostics_inventory[item].status | default('unknown')
+                if item in sasd_service_diagnostics_inventory else 'missing'
+              ),
+              'source': (
+                sasd_service_diagnostics_inventory[item].source | default('unknown')
+                if item in sasd_service_diagnostics_inventory else 'unknown'
+              )
+            }
+          ]
+      }}
+  loop: "{{ sasd_service_diagnostics_monitored_services }}"
+  loop_control:
+    label: "{{ item }}"
+
+- name: Service diagnostics | Identify missing monitored services
+  ansible.builtin.set_fact:
+    sasd_service_diagnostics_missing_monitored: >-
+      {{
+        sasd_service_diagnostics_monitored_results
+        | rejectattr('found')
+        | map(attribute='name')
+        | list
+      }}
+
+- name: Service diagnostics | Build issue list
+  ansible.builtin.set_fact:
+    sasd_service_diagnostics_issues: >-
+      {{
+        (
+          [
+            {
+              'severity': 'warning',
+              'component': 'services',
+              'code': 'failed-services',
+              'message': (
+                sasd_service_diagnostics_failed_from_facts | length | string
+                ~ ' failed service fact(s) detected'
+              )
+            }
+          ]
+          if sasd_service_diagnostics_failed_from_facts | length > 0 else []
+        )
+        +
+        (
+          [
+            {
+              'severity': (
+                'critical'
+                if sasd_service_diagnostics_fail_on_missing_monitored else 'warning'
+              ),
+              'component': 'services',
+              'code': 'missing-monitored-services',
+              'message': (
+                sasd_service_diagnostics_missing_monitored | length | string
+                ~ ' monitored service(s) were not found'
+              )
+            }
+          ]
+          if sasd_service_diagnostics_missing_monitored | length > 0 else []
+        )
+      }}
+
+- name: Service diagnostics | Build result contract
+  ansible.builtin.set_fact:
+    sasd_service_diagnostics_result:
+      schema: sasd.diagnostics.services.v1
+      host: "{{ inventory_hostname }}"
+      collected_at_utc: "{{ ansible_facts.date_time.iso8601 }}"
+      status: >-
+        {{
+          'critical'
+          if (
+            sasd_service_diagnostics_fail_on_missing_monitored
+            and sasd_service_diagnostics_missing_monitored | length > 0
+          )
+          else (
+            'warning'
+            if sasd_service_diagnostics_issues | length > 0 else 'ok'
+          )
+        }}
+      service_manager: "{{ ansible_facts.service_mgr }}"
+      service_facts_available: >-
+        {{ not (sasd_service_diagnostics_facts_call.failed | default(false)) }}
+      discovered_service_count: "{{ sasd_service_diagnostics_inventory | length }}"
+      failed_services: "{{ sasd_service_diagnostics_failed_from_facts | sort }}"
+      failed_systemd_units: >-
+        {{
+          sasd_service_diagnostics_systemd_failed.stdout_lines | default([])
+          | reject('equalto', '')
+          | list
+        }}
+      monitored_services: "{{ sasd_service_diagnostics_monitored_results }}"
+      issues: "{{ sasd_service_diagnostics_issues }}"
+
+- name: Service diagnostics | Write local JSON report
+  ansible.builtin.include_tasks: ../../sasd_system_baseline/tasks/write-report.yml
+  vars:
+    sasd_report_enabled: "{{ sasd_service_diagnostics_report_enabled }}"
+    sasd_report_root: "{{ sasd_service_diagnostics_report_root }}"
+    sasd_report_payload: "{{ sasd_service_diagnostics_result }}"
+    sasd_report_filename: services.json

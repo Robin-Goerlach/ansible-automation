@@ -1,0 +1,80 @@
+---
+- name: Validate baseline safety variables
+  ansible.builtin.assert:
+    that:
+      - sasd_system_baseline_mode in ['audit', 'apply']
+      - ansible_facts.system == 'Linux'
+      - ansible_facts.os_family in sasd_system_baseline_supported_os_families
+    fail_msg: >-
+      Unsupported baseline request for {{ inventory_hostname }}. Mode must be
+      audit or apply, and the platform must be a supported Linux family.
+
+- name: Warn when apply mode has no enabled change set
+  ansible.builtin.debug:
+    msg: >-
+      Apply mode is active, but package management is disabled. No managed-node
+      changes are enabled for this Milestone 1 role invocation.
+  when:
+    - sasd_system_baseline_mode == 'apply'
+    - not sasd_system_baseline_manage_packages | bool
+
+- name: Install explicitly approved baseline packages
+  ansible.builtin.package:
+    name: "{{ sasd_system_baseline_packages }}"
+    state: present
+  when:
+    - sasd_system_baseline_mode == 'apply'
+    - sasd_system_baseline_manage_packages | bool
+
+- name: Collect baseline package facts when supported
+  ansible.builtin.package_facts:
+    manager: auto
+  register: sasd_system_baseline_package_facts_result
+  failed_when: false
+
+- name: Normalize available package facts
+  ansible.builtin.set_fact:
+    sasd_system_baseline_package_inventory: "{{ ansible_facts.packages | default({}) }}"
+
+- name: Build baseline audit result
+  ansible.builtin.set_fact:
+    sasd_system_baseline_result:
+      schema: sasd.system-baseline.v1
+      host: "{{ inventory_hostname }}"
+      collected_at_utc: "{{ ansible_facts.date_time.iso8601 }}"
+      mode: "{{ sasd_system_baseline_mode }}"
+      platform: "{{ ansible_facts.distribution }} {{ ansible_facts.distribution_version }}"
+      package_manager: "{{ ansible_facts.pkg_mgr }}"
+      requested_packages: "{{ sasd_system_baseline_packages }}"
+      package_facts_available: "{{ 'packages' in ansible_facts }}"
+      installed_packages: >-
+        {{ (sasd_system_baseline_packages |
+            select('in', sasd_system_baseline_package_inventory) | list)
+           if 'packages' in ansible_facts else [] }}
+      missing_packages: >-
+        {{ (sasd_system_baseline_packages |
+            reject('in', sasd_system_baseline_package_inventory) | list)
+           if 'packages' in ansible_facts else [] }}
+      package_changes_enabled: "{{ sasd_system_baseline_manage_packages | bool }}"
+
+- name: Display baseline audit result
+  ansible.builtin.debug:
+    var: sasd_system_baseline_result
+
+- name: Create local baseline report directory
+  ansible.builtin.file:
+    path: "{{ playbook_dir }}/../../{{ sasd_system_baseline_report_root }}"
+    state: directory
+    mode: "0750"
+  delegate_to: localhost
+  become: false
+  when: sasd_system_baseline_report_enabled | bool
+
+- name: Write local baseline JSON report
+  ansible.builtin.copy:
+    content: "{{ sasd_system_baseline_result | to_nice_json }}\n"
+    dest: "{{ playbook_dir }}/../../{{ sasd_system_baseline_report_root }}/{{ inventory_hostname }}.json"
+    mode: "0640"
+  delegate_to: localhost
+  become: false
+  when: sasd_system_baseline_report_enabled | bool

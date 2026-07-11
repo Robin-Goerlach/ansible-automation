@@ -1,0 +1,96 @@
+---
+- name: Sudo configuration | Validate safety and declarations
+  ansible.builtin.assert:
+    that:
+      - sasd_sudo_configuration_mode in ['audit', 'apply']
+      - sasd_sudo_configuration_entries is iterable
+      - >-
+        sasd_sudo_configuration_mode == 'audit' or
+        sasd_sudo_configuration_apply_confirmation == 'SASD_APPLY_LINUX_BASELINE'
+    fail_msg: Sudo apply mode requires the exact Milestone 2 confirmation token.
+
+- name: Sudo configuration | Validate entry names and state
+  ansible.builtin.assert:
+    that:
+      - item.name is defined
+      - item.name is match('^[A-Za-z0-9_.-]+$')
+      - item.state | default('present') in ['present', 'absent']
+      - item.state | default('present') == 'absent' or item.content is defined
+  loop: "{{ sasd_sudo_configuration_entries }}"
+  loop_control:
+    label: "{{ item.name | default('missing-name') }}"
+
+- name: Sudo configuration | Check visudo availability
+  ansible.builtin.stat:
+    path: /usr/sbin/visudo
+  register: sasd_sudo_configuration_visudo
+
+- name: Sudo configuration | Inspect declared drop-ins
+  ansible.builtin.stat:
+    path: "/etc/sudoers.d/{{ item.name }}"
+  loop: "{{ sasd_sudo_configuration_entries }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: sasd_sudo_configuration_stats
+
+- name: Sudo configuration | Require visudo before apply
+  ansible.builtin.assert:
+    that:
+      - sasd_sudo_configuration_visudo.stat.exists
+    fail_msg: Install sudo/visudo before managing sudo drop-ins.
+  when:
+    - sasd_sudo_configuration_mode == 'apply'
+    - sasd_sudo_configuration_manage | bool
+    - sasd_sudo_configuration_entries | length > 0
+
+- name: Sudo configuration | Write validated drop-ins
+  ansible.builtin.copy:
+    content: "{{ item.content | trim }}\n"
+    dest: "/etc/sudoers.d/{{ item.name }}"
+    owner: root
+    group: root
+    mode: "0440"
+    validate: /usr/sbin/visudo -cf %s
+    backup: true
+  loop: "{{ sasd_sudo_configuration_entries }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when:
+    - sasd_sudo_configuration_mode == 'apply'
+    - sasd_sudo_configuration_manage | bool
+    - item.state | default('present') == 'present'
+
+- name: Sudo configuration | Remove explicitly retired drop-ins
+  ansible.builtin.file:
+    path: "/etc/sudoers.d/{{ item.name }}"
+    state: absent
+  loop: "{{ sasd_sudo_configuration_entries }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when:
+    - sasd_sudo_configuration_mode == 'apply'
+    - sasd_sudo_configuration_manage | bool
+    - item.state | default('present') == 'absent'
+
+- name: Sudo configuration | Build audit result
+  ansible.builtin.set_fact:
+    sasd_sudo_configuration_result:
+      schema: sasd.sudo-configuration.v1
+      host: "{{ inventory_hostname }}"
+      collected_at_utc: "{{ ansible_facts.date_time.iso8601 }}"
+      mode: "{{ sasd_sudo_configuration_mode }}"
+      manage_enabled: "{{ sasd_sudo_configuration_manage | bool }}"
+      visudo_available: "{{ sasd_sudo_configuration_visudo.stat.exists }}"
+      declared_entries: "{{ sasd_sudo_configuration_entries | map(attribute='name') | list }}"
+      present_entries: >-
+        {{ sasd_sudo_configuration_stats.results | default([]) |
+           selectattr('stat.exists', 'defined') | selectattr('stat.exists') |
+           map(attribute='item.name') | list }}
+
+- name: Sudo configuration | Write local JSON report
+  ansible.builtin.include_tasks: ../../sasd_system_baseline/tasks/write-report.yml
+  vars:
+    sasd_report_enabled: "{{ sasd_sudo_configuration_report_enabled }}"
+    sasd_report_root: "{{ sasd_sudo_configuration_report_root }}"
+    sasd_report_payload: "{{ sasd_sudo_configuration_result }}"
+    sasd_report_filename: "{{ inventory_hostname }}.json"

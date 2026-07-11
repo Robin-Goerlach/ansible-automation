@@ -1,0 +1,57 @@
+---
+- name: Run safe Milestone 3 localhost acceptance
+  hosts: linux_managed
+  connection: local
+  become: false
+  gather_facts: true
+  vars:
+    sasd_apache_mode: audit
+    sasd_apache_manage: false
+    sasd_apache_virtual_hosts: []
+    sasd_nginx_mode: audit
+    sasd_nginx_manage: false
+    sasd_nginx_virtual_hosts: []
+    sasd_php_mode: audit
+    sasd_php_manage: false
+    sasd_php_ini_files: []
+    sasd_certificate_management_mode: audit
+    sasd_certificate_management_manage: false
+    sasd_certificate_management_certificates: []
+  roles:
+    - role: sasd_certificate_management
+    - role: sasd_php
+    - role: sasd_apache
+    - role: sasd_nginx
+  tasks:
+    - name: Milestone 3 localhost | Build consolidated result
+      ansible.builtin.set_fact:
+        sasd_web_services_result:
+          schema: sasd.web-services.v1
+          host: "{{ inventory_hostname }}"
+          collected_at_utc: "{{ ansible_facts.date_time.iso8601 }}"
+          mode: audit
+          selected_server: none
+          certificates: "{{ sasd_certificate_management_result }}"
+          php: "{{ sasd_php_result }}"
+          apache: "{{ sasd_apache_result }}"
+          nginx: "{{ sasd_nginx_result }}"
+
+    - name: Milestone 3 localhost | Write consolidated report
+      ansible.builtin.copy:
+        content: "{{ sasd_web_services_result | to_nice_json }}\n"
+        dest: "{{ playbook_dir }}/../../reports/web-services/localhost.json"
+        mode: "0640"
+      delegate_to: localhost
+
+    - name: Milestone 3 localhost | Assert safe mode and schemas
+      ansible.builtin.assert:
+        that:
+          - sasd_web_services_result.mode == 'audit'
+          - not sasd_web_services_result.apache.manage_enabled
+          - not sasd_web_services_result.nginx.manage_enabled
+          - not sasd_web_services_result.php.manage_enabled
+          - not sasd_web_services_result.certificates.manage_enabled
+          - sasd_web_services_result.apache.schema == 'sasd.apache.v1'
+          - sasd_web_services_result.nginx.schema == 'sasd.nginx.v1'
+          - sasd_web_services_result.php.schema == 'sasd.php.v1'
+          - sasd_web_services_result.certificates.schema == 'sasd.certificate-management.v1'

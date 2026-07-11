@@ -1,0 +1,108 @@
+---
+- name: Firewall | Validate safety and provider
+  ansible.builtin.assert:
+    that:
+      - sasd_firewall_mode in ['audit', 'apply']
+      - sasd_firewall_provider in ['none', 'ufw', 'firewalld']
+      - sasd_firewall_default_incoming in ['allow', 'deny', 'reject']
+      - sasd_firewall_default_outgoing in ['allow', 'deny', 'reject']
+      - sasd_firewall_rules is iterable
+      - >-
+        sasd_firewall_mode == 'audit' or
+        sasd_firewall_apply_confirmation == 'SASD_APPLY_LINUX_BASELINE'
+    fail_msg: Invalid firewall configuration or missing Milestone 2 confirmation token.
+
+- name: Firewall | Validate rule declarations
+  ansible.builtin.assert:
+    that:
+      - item.port is defined
+      - item.port | string is match('^[0-9]+(-[0-9]+)?$')
+      - item.protocol | default('tcp') in ['tcp', 'udp']
+      - item.action | default('allow') in ['allow', 'deny', 'reject']
+      - item.source | default('any') is string
+  loop: "{{ sasd_firewall_rules }}"
+  loop_control:
+    label: "{{ item.action | default('allow') }} {{ item.port | default('?') }}/{{ item.protocol | default('tcp') }}"
+
+- name: Firewall | Check UFW availability
+  ansible.builtin.command:
+    argv: [sh, -c, command -v ufw]
+  register: sasd_firewall_ufw_binary
+  changed_when: false
+  failed_when: false
+
+- name: Firewall | Check firewalld availability
+  ansible.builtin.command:
+    argv: [sh, -c, command -v firewall-cmd]
+  register: sasd_firewall_firewalld_binary
+  changed_when: false
+  failed_when: false
+
+- name: Firewall | Query UFW status
+  ansible.builtin.command:
+    argv: [ufw, status, verbose]
+  register: sasd_firewall_ufw_status
+  changed_when: false
+  failed_when: false
+  when: sasd_firewall_ufw_binary.rc == 0
+
+- name: Firewall | Query firewalld status
+  ansible.builtin.command:
+    argv: [firewall-cmd, --state]
+  register: sasd_firewall_firewalld_status
+  changed_when: false
+  failed_when: false
+  when: sasd_firewall_firewalld_binary.rc == 0
+
+- name: Firewall | Apply selected provider
+  when:
+    - sasd_firewall_mode == 'apply'
+    - sasd_firewall_manage | bool
+  block:
+    - name: Firewall | Reject apply without an explicit provider
+      ansible.builtin.assert:
+        that:
+          - sasd_firewall_provider != 'none'
+        fail_msg: Firewall management requires an explicit provider of ufw or firewalld.
+
+    - name: Firewall | Install selected provider
+      ansible.builtin.package:
+        name: "{{ sasd_firewall_package[sasd_firewall_provider] }}"
+        state: present
+
+    - name: Firewall | Enable selected provider service
+      ansible.builtin.service:
+        name: "{{ sasd_firewall_service[sasd_firewall_provider] }}"
+        enabled: true
+        state: started
+
+    - name: Firewall | Apply UFW adapter
+      ansible.builtin.include_tasks: apply-ufw.yml
+      when: sasd_firewall_provider == 'ufw'
+
+    - name: Firewall | Apply firewalld adapter
+      ansible.builtin.include_tasks: apply-firewalld.yml
+      when: sasd_firewall_provider == 'firewalld'
+
+- name: Firewall | Build audit result
+  ansible.builtin.set_fact:
+    sasd_firewall_result:
+      schema: sasd.firewall.v1
+      host: "{{ inventory_hostname }}"
+      collected_at_utc: "{{ ansible_facts.date_time.iso8601 }}"
+      mode: "{{ sasd_firewall_mode }}"
+      manage_enabled: "{{ sasd_firewall_manage | bool }}"
+      requested_provider: "{{ sasd_firewall_provider }}"
+      ufw_available: "{{ sasd_firewall_ufw_binary.rc == 0 }}"
+      ufw_status: "{{ sasd_firewall_ufw_status.stdout | default('unavailable') }}"
+      firewalld_available: "{{ sasd_firewall_firewalld_binary.rc == 0 }}"
+      firewalld_status: "{{ sasd_firewall_firewalld_status.stdout | default('unavailable') }}"
+      requested_rules: "{{ sasd_firewall_rules }}"
+
+- name: Firewall | Write local JSON report
+  ansible.builtin.include_tasks: ../../sasd_system_baseline/tasks/write-report.yml
+  vars:
+    sasd_report_enabled: "{{ sasd_firewall_report_enabled }}"
+    sasd_report_root: "{{ sasd_firewall_report_root }}"
+    sasd_report_payload: "{{ sasd_firewall_result }}"
+    sasd_report_filename: "{{ inventory_hostname }}.json"

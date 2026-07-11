@@ -1,0 +1,6 @@
+---
+sasd_certificate_management_allowed_certificate_path_pattern: >-
+  ^/etc/(ssl/certs|pki/tls/certs|apache2/ssl|nginx/ssl)/[A-Za-z0-9_.-]+\.(crt|pem)$
+sasd_certificate_management_allowed_private_key_path_pattern: >-
+  ^/etc/(ssl/private|pki/tls/private|apache2/ssl|nginx/ssl)/[A-Za-z0-9_.-]+\.(key|pem)$
+sasd_certificate_management_allowed_name_pattern: '^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$'

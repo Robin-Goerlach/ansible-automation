@@ -1,0 +1,15 @@
+---
+profile: production
+strict: true
+offline: true
+exclude_paths:
+  - manifests/
+  - .cache/
+  - .venv/
+  - artifacts/
+  - collections/ansible_collections/
+  - diagnostic-bundles/
+  - inventories/production/
+  - reports/
+mock_roles: []
+mock_modules: []

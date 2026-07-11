@@ -1,0 +1,8 @@
+---
+sasd_php_packages_by_family:
+  Debian: [php-cli, php-fpm]
+  RedHat: [php-cli, php-fpm]
+  Suse: [php8, php8-fpm]
+sasd_php_allowed_ini_path_patterns:
+  - '^/etc/php([0-9.]*)?(/[A-Za-z0-9_.-]+)*/[A-Za-z0-9_.-]+\.ini$'
+  - '^/etc/php\.d/[A-Za-z0-9_.-]+\.ini$'

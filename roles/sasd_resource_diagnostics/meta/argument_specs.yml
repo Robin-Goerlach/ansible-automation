@@ -1,0 +1,32 @@
+---
+argument_specs:
+  main:
+    short_description: Collect read-only host resource diagnostics.
+    options:
+      sasd_resource_diagnostics_load_warning_per_cpu:
+        type: float
+        default: 1.0
+      sasd_resource_diagnostics_memory_available_warning_percent:
+        type: int
+        default: 15
+      sasd_resource_diagnostics_swap_used_warning_percent:
+        type: int
+        default: 50
+      sasd_resource_diagnostics_filesystem_used_warning_percent:
+        type: int
+        default: 85
+      sasd_resource_diagnostics_inode_used_warning_percent:
+        type: int
+        default: 85
+      sasd_resource_diagnostics_top_process_count:
+        type: int
+        default: 10
+      sasd_resource_diagnostics_excluded_filesystem_types:
+        type: list
+        elements: str
+      sasd_resource_diagnostics_report_enabled:
+        type: bool
+        default: true
+      sasd_resource_diagnostics_report_root:
+        type: str
+        default: reports/diagnostics/resources

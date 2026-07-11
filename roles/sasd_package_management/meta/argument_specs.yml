@@ -1,0 +1,24 @@
+---
+argument_specs:
+  main:
+    short_description: Audit or apply package and repository-file configuration.
+    options:
+      sasd_package_management_mode:
+        type: str
+        choices: [audit, apply]
+        default: audit
+      sasd_package_management_apply_confirmation:
+        type: str
+        default: ""
+      sasd_package_management_manage:
+        type: bool
+        default: true
+      sasd_package_management_packages:
+        type: list
+        elements: str
+      sasd_package_management_repository_files:
+        type: list
+        elements: dict
+      sasd_package_management_update_cache:
+        type: bool
+        default: false

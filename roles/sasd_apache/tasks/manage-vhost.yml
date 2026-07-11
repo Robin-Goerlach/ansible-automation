@@ -1,0 +1,133 @@
+---
+- name: Apache vhost | Validate declaration
+  ansible.builtin.assert:
+    that:
+      - sasd_apache_vhost.name is defined
+      - sasd_apache_vhost.name is match(sasd_apache_allowed_vhost_name_pattern)
+      - sasd_apache_vhost.state | default('present') in ['present', 'absent']
+      - sasd_apache_vhost.state | default('present') == 'absent' or sasd_apache_vhost.server_name is defined
+      - sasd_apache_vhost.state | default('present') == 'absent' or sasd_apache_vhost.document_root is defined
+      - >-
+        sasd_apache_vhost.state | default('present') == 'absent' or
+        sasd_apache_vhost.document_root is match(sasd_apache_allowed_document_root_pattern)
+      - sasd_apache_vhost.port | default(80) | int >= 1
+      - sasd_apache_vhost.port | default(80) | int <= 65535
+      - >-
+        not (sasd_apache_vhost.tls | default(false)) or
+        (sasd_apache_vhost.certificate_path is defined and sasd_apache_vhost.private_key_path is defined)
+    fail_msg: "Invalid Apache virtual-host declaration: {{ sasd_apache_vhost.name | default('unnamed') }}"
+
+- name: Apache vhost | Derive managed paths
+  ansible.builtin.set_fact:
+    sasd_apache_current_config_path: >-
+      {{ sasd_apache_vhost_available_dir }}/{{ sasd_apache_vhost.name }}.conf
+    sasd_apache_current_enabled_path: >-
+      {{ sasd_apache_vhost_enabled_dir }}/{{ sasd_apache_vhost.name }}.conf
+
+- name: Apache vhost | Inspect current configuration
+  ansible.builtin.stat:
+    path: "{{ sasd_apache_current_config_path }}"
+  register: sasd_apache_current_config_stat
+
+- name: Apache vhost | Capture current configuration for rollback
+  ansible.builtin.slurp:
+    src: "{{ sasd_apache_current_config_path }}"
+  register: sasd_apache_current_config_backup
+  when: sasd_apache_current_config_stat.stat.exists
+
+- name: Apache vhost | Inspect current enablement link
+  ansible.builtin.stat:
+    path: "{{ sasd_apache_current_enabled_path }}"
+  register: sasd_apache_current_enabled_stat
+  when: sasd_apache_vhost_enabled_dir != sasd_apache_vhost_available_dir
+
+- name: Apache vhost | Apply and validate declaration
+  block:
+    - name: Apache vhost | Ensure document root exists
+      ansible.builtin.file:
+        path: "{{ sasd_apache_vhost.document_root }}"
+        state: directory
+        owner: "{{ sasd_apache_vhost.document_root_owner | default('root') }}"
+        group: "{{ sasd_apache_vhost.document_root_group | default('root') }}"
+        mode: "{{ sasd_apache_vhost.document_root_mode | default('0755') }}"
+      when: sasd_apache_vhost.state | default('present') == 'present'
+
+    - name: Apache vhost | Render configuration
+      ansible.builtin.template:
+        src: virtual-host.conf.j2
+        dest: "{{ sasd_apache_current_config_path }}"
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Apache | Reload service
+      when: sasd_apache_vhost.state | default('present') == 'present'
+
+    - name: Apache vhost | Enable configuration
+      ansible.builtin.file:
+        src: "{{ sasd_apache_current_config_path }}"
+        dest: "{{ sasd_apache_current_enabled_path }}"
+        state: link
+      notify: Apache | Reload service
+      when:
+        - sasd_apache_vhost.state | default('present') == 'present'
+        - sasd_apache_vhost_enabled_dir != sasd_apache_vhost_available_dir
+
+    - name: Apache vhost | Remove enablement link
+      ansible.builtin.file:
+        path: "{{ sasd_apache_current_enabled_path }}"
+        state: absent
+      notify: Apache | Reload service
+      when:
+        - sasd_apache_vhost.state | default('present') == 'absent'
+        - sasd_apache_vhost_enabled_dir != sasd_apache_vhost_available_dir
+
+    - name: Apache vhost | Remove retired configuration
+      ansible.builtin.file:
+        path: "{{ sasd_apache_current_config_path }}"
+        state: absent
+      notify: Apache | Reload service
+      when: sasd_apache_vhost.state | default('present') == 'absent'
+
+    - name: Apache vhost | Validate complete Apache configuration
+      ansible.builtin.command:
+        argv: "{{ sasd_apache_configtest_argv }}"
+      changed_when: false
+      when: not ansible_check_mode
+  rescue:
+    - name: Apache vhost | Restore previous configuration content
+      ansible.builtin.copy:
+        content: "{{ sasd_apache_current_config_backup.content | b64decode }}"
+        dest: "{{ sasd_apache_current_config_path }}"
+        owner: root
+        group: root
+        mode: "0644"
+      when: sasd_apache_current_config_stat.stat.exists
+
+    - name: Apache vhost | Remove newly introduced invalid configuration
+      ansible.builtin.file:
+        path: "{{ sasd_apache_current_config_path }}"
+        state: absent
+      when: not sasd_apache_current_config_stat.stat.exists
+
+    - name: Apache vhost | Restore previous enablement link
+      ansible.builtin.file:
+        src: "{{ sasd_apache_current_config_path }}"
+        dest: "{{ sasd_apache_current_enabled_path }}"
+        state: link
+      when:
+        - sasd_apache_vhost_enabled_dir != sasd_apache_vhost_available_dir
+        - sasd_apache_current_enabled_stat.stat.exists | default(false)
+
+    - name: Apache vhost | Remove newly introduced enablement link
+      ansible.builtin.file:
+        path: "{{ sasd_apache_current_enabled_path }}"
+        state: absent
+      when:
+        - sasd_apache_vhost_enabled_dir != sasd_apache_vhost_available_dir
+        - not (sasd_apache_current_enabled_stat.stat.exists | default(false))
+
+    - name: Apache vhost | Stop after rollback
+      ansible.builtin.fail:
+        msg: >-
+          Apache configuration validation failed for {{ sasd_apache_vhost.name }};
+          the previous file and enablement state were restored.

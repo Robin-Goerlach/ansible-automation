@@ -1,0 +1,30 @@
+---
+sasd_resource_diagnostics_load_warning_per_cpu: 1.0
+sasd_resource_diagnostics_memory_available_warning_percent: 15
+sasd_resource_diagnostics_swap_used_warning_percent: 50
+sasd_resource_diagnostics_filesystem_used_warning_percent: 85
+sasd_resource_diagnostics_inode_used_warning_percent: 85
+sasd_resource_diagnostics_top_process_count: 10
+sasd_resource_diagnostics_excluded_filesystem_types:
+  - autofs
+  - binfmt_misc
+  - cgroup
+  - cgroup2
+  - configfs
+  - debugfs
+  - devpts
+  - devtmpfs
+  - efivarfs
+  - fusectl
+  - hugetlbfs
+  - mqueue
+  - overlay
+  - proc
+  - pstore
+  - securityfs
+  - squashfs
+  - sysfs
+  - tmpfs
+  - tracefs
+sasd_resource_diagnostics_report_enabled: true
+sasd_resource_diagnostics_report_root: reports/diagnostics/resources

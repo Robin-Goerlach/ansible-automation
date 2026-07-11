@@ -1,0 +1,7 @@
+---
+sasd_firewall_package:
+  ufw: ufw
+  firewalld: firewalld
+sasd_firewall_service:
+  ufw: ufw
+  firewalld: firewalld

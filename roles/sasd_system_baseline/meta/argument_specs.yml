@@ -1,0 +1,26 @@
+---
+argument_specs:
+  main:
+    short_description: Audit or apply the Milestone 1 SASD Linux foundation.
+    options:
+      sasd_system_baseline_mode:
+        type: str
+        choices: [audit, apply]
+        default: audit
+        description: Audit performs no managed-node changes; apply permits enabled changes.
+      sasd_system_baseline_manage_packages:
+        type: bool
+        default: false
+        description: Install baseline packages only when mode is apply.
+      sasd_system_baseline_packages:
+        type: list
+        elements: str
+        description: Baseline package names resolved by the managed-node package manager.
+      sasd_system_baseline_report_enabled:
+        type: bool
+        default: true
+        description: Write a JSON audit result on the control node.
+      sasd_system_baseline_report_root:
+        type: str
+        default: reports/baseline
+        description: Repository-relative report directory on the control node.

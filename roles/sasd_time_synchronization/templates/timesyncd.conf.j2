@@ -1,0 +1,4 @@
+# Managed by SASD Ansible Automation.
+[Time]
+NTP={{ sasd_time_synchronization_servers | join(' ') }}
+FallbackNTP={{ sasd_time_synchronization_fallback_servers | join(' ') }}

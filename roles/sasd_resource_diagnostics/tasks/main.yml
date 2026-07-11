@@ -1,0 +1,61 @@
+---
+- name: Resource diagnostics | Validate inputs
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.system == 'Linux'
+      - sasd_resource_diagnostics_load_warning_per_cpu | float >= 0
+      - sasd_resource_diagnostics_memory_available_warning_percent | int in range(0, 101)
+      - sasd_resource_diagnostics_swap_used_warning_percent | int in range(0, 101)
+      - sasd_resource_diagnostics_filesystem_used_warning_percent | int in range(0, 101)
+      - sasd_resource_diagnostics_inode_used_warning_percent | int in range(0, 101)
+      - sasd_resource_diagnostics_top_process_count | int in range(1, 101)
+    fail_msg: Resource diagnostics require Linux and valid threshold values.
+
+- name: Resource diagnostics | Run portable collector
+  ansible.builtin.script:
+    cmd: resource_diagnostics.py
+  environment:
+    SASD_RESOURCE_LOAD_WARNING_PER_CPU: >-
+      {{ sasd_resource_diagnostics_load_warning_per_cpu | string }}
+    SASD_RESOURCE_MEMORY_AVAILABLE_WARNING_PERCENT: >-
+      {{ sasd_resource_diagnostics_memory_available_warning_percent | string }}
+    SASD_RESOURCE_SWAP_USED_WARNING_PERCENT: >-
+      {{ sasd_resource_diagnostics_swap_used_warning_percent | string }}
+    SASD_RESOURCE_FILESYSTEM_USED_WARNING_PERCENT: >-
+      {{ sasd_resource_diagnostics_filesystem_used_warning_percent | string }}
+    SASD_RESOURCE_INODE_USED_WARNING_PERCENT: >-
+      {{ sasd_resource_diagnostics_inode_used_warning_percent | string }}
+    SASD_RESOURCE_TOP_PROCESS_COUNT: >-
+      {{ sasd_resource_diagnostics_top_process_count | string }}
+    SASD_RESOURCE_EXCLUDED_FILESYSTEM_TYPES: >-
+      {{ sasd_resource_diagnostics_excluded_filesystem_types | to_json }}
+  register: sasd_resource_diagnostics_collector
+  changed_when: false
+  check_mode: false
+
+- name: Resource diagnostics | Parse collector output
+  ansible.builtin.set_fact:
+    sasd_resource_diagnostics_payload: >-
+      {{ sasd_resource_diagnostics_collector.stdout | from_json }}
+
+- name: Resource diagnostics | Build result contract
+  ansible.builtin.set_fact:
+    sasd_resource_diagnostics_result:
+      schema: sasd.diagnostics.resources.v1
+      host: "{{ inventory_hostname }}"
+      collected_at_utc: "{{ ansible_facts.date_time.iso8601 }}"
+      status: "{{ sasd_resource_diagnostics_payload.status }}"
+      issues: "{{ sasd_resource_diagnostics_payload.issues }}"
+      cpu: "{{ sasd_resource_diagnostics_payload.cpu }}"
+      memory: "{{ sasd_resource_diagnostics_payload.memory }}"
+      swap: "{{ sasd_resource_diagnostics_payload.swap }}"
+      filesystems: "{{ sasd_resource_diagnostics_payload.filesystems }}"
+      top_processes: "{{ sasd_resource_diagnostics_payload.top_processes }}"
+
+- name: Resource diagnostics | Write local JSON report
+  ansible.builtin.include_tasks: ../../sasd_system_baseline/tasks/write-report.yml
+  vars:
+    sasd_report_enabled: "{{ sasd_resource_diagnostics_report_enabled }}"
+    sasd_report_root: "{{ sasd_resource_diagnostics_report_root }}"
+    sasd_report_payload: "{{ sasd_resource_diagnostics_result }}"
+    sasd_report_filename: resources.json

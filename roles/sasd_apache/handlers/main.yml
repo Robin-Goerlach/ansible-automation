@@ -1,0 +1,9 @@
+---
+- name: Apache | Reload service
+  ansible.builtin.service:
+    name: "{{ sasd_apache_effective_service_name }}"
+    state: reloaded
+  when:
+    - not ansible_check_mode
+    - sasd_apache_manage_service | bool
+    - sasd_apache_effective_service_name | length > 0

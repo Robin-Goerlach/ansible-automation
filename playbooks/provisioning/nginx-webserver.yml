@@ -1,0 +1,10 @@
+---
+- name: Audit or apply Nginx web-server configuration
+  hosts: webservers
+  become: "{{ (sasd_web_services_mode | default('audit')) == 'apply' }}"
+  gather_facts: true
+  roles:
+    - role: sasd_nginx
+      vars:
+        sasd_nginx_mode: "{{ sasd_web_services_mode | default('audit') }}"
+        sasd_nginx_apply_confirmation: "{{ sasd_web_services_apply_confirmation | default('') }}"

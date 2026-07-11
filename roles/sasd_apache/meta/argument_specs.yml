@@ -1,0 +1,33 @@
+---
+argument_specs:
+  main:
+    short_description: Audit or apply Apache web-server configuration.
+    options:
+      sasd_apache_mode:
+        type: str
+        choices: [audit, apply]
+        default: audit
+      sasd_apache_apply_confirmation:
+        type: str
+        default: ""
+      sasd_apache_manage:
+        type: bool
+        default: false
+      sasd_apache_manage_packages:
+        type: bool
+        default: true
+      sasd_apache_packages:
+        type: list
+        elements: str
+      sasd_apache_manage_service:
+        type: bool
+        default: true
+      sasd_apache_service_name:
+        type: str
+        default: ""
+      sasd_apache_modules:
+        type: list
+        elements: str
+      sasd_apache_virtual_hosts:
+        type: list
+        elements: dict

@@ -1,0 +1,3 @@
+---
+- name: Import the managed Linux bootstrap
+  ansible.builtin.import_playbook: ../../bootstrap/bootstrap-managed-linux.yml

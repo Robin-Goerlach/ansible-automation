@@ -1,0 +1,23 @@
+---
+# Purpose: collect interfaces, routes, resolver state, sockets, DNS, and TCP checks.
+# Safety: only explicitly declared DNS names and TCP targets are contacted.
+- name: Collect Linux network diagnostics
+  hosts: linux_managed
+  gather_facts: true
+  become: false
+
+  pre_tasks:
+    - name: Network diagnostics | Freeze run identifier
+      ansible.builtin.set_fact:
+        sasd_diagnostics_run_id_effective: >-
+          {{ sasd_diagnostics_run_id | default(ansible_facts.date_time.iso8601_basic_short, true) }}
+
+  roles:
+    - role: sasd_network_diagnostics
+      vars:
+        sasd_network_diagnostics_report_root: >-
+          {{
+            sasd_diagnostics_report_root | default('reports/diagnostics')
+            ~ '/' ~ sasd_diagnostics_run_id_effective
+            ~ '/' ~ inventory_hostname
+          }}

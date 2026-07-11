@@ -1,0 +1,128 @@
+---
+- name: Time synchronization | Resolve provider
+  ansible.builtin.set_fact:
+    sasd_time_synchronization_resolved_provider: >-
+      {{ sasd_time_synchronization_auto_provider[ansible_facts.os_family]
+         if sasd_time_synchronization_provider == 'auto'
+         else sasd_time_synchronization_provider }}
+
+- name: Time synchronization | Validate safety and provider
+  ansible.builtin.assert:
+    that:
+      - sasd_time_synchronization_mode in ['audit', 'apply']
+      - sasd_time_synchronization_resolved_provider in ['systemd-timesyncd', 'chrony']
+      - ansible_facts.os_family in sasd_time_synchronization_service[sasd_time_synchronization_resolved_provider]
+      - >-
+        sasd_time_synchronization_mode == 'audit' or
+        sasd_time_synchronization_apply_confirmation == 'SASD_APPLY_LINUX_BASELINE'
+    fail_msg: Unsupported time provider/platform or missing Milestone 2 confirmation token.
+
+- name: Time synchronization | Collect service facts
+  ansible.builtin.service_facts:
+  failed_when: false
+
+- name: Time synchronization | Query timedatectl
+  ansible.builtin.command:
+    argv: [timedatectl, show, --property=NTPSynchronized, --property=NTP, --property=Timezone]
+  register: sasd_time_synchronization_timedatectl
+  changed_when: false
+  failed_when: false
+
+- name: Time synchronization | Install selected provider package
+  ansible.builtin.package:
+    name: >-
+      {{ sasd_time_synchronization_package[sasd_time_synchronization_resolved_provider]
+         [ansible_facts.os_family] }}
+    state: present
+  when:
+    - sasd_time_synchronization_mode == 'apply'
+    - sasd_time_synchronization_manage | bool
+
+- name: Time synchronization | Configure systemd-timesyncd
+  ansible.builtin.template:
+    src: timesyncd.conf.j2
+    dest: /etc/systemd/timesyncd.conf
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+  notify: Time synchronization | Restart selected provider
+  when:
+    - sasd_time_synchronization_mode == 'apply'
+    - sasd_time_synchronization_manage | bool
+    - sasd_time_synchronization_resolved_provider == 'systemd-timesyncd'
+
+- name: Time synchronization | Ensure chrony drop-in directory exists
+  ansible.builtin.file:
+    path: "{{ sasd_time_synchronization_chrony_drop_in_directory }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  when:
+    - sasd_time_synchronization_mode == 'apply'
+    - sasd_time_synchronization_manage | bool
+    - sasd_time_synchronization_resolved_provider == 'chrony'
+
+- name: Time synchronization | Configure chrony source include
+  ansible.builtin.template:
+    src: chrony-sasd.conf.j2
+    dest: "{{ sasd_time_synchronization_chrony_drop_in }}"
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+  notify: Time synchronization | Restart selected provider
+  when:
+    - sasd_time_synchronization_mode == 'apply'
+    - sasd_time_synchronization_manage | bool
+    - sasd_time_synchronization_resolved_provider == 'chrony'
+
+- name: Time synchronization | Ensure chrony loads the managed include
+  ansible.builtin.lineinfile:
+    path: "{{ sasd_time_synchronization_chrony_main_config[ansible_facts.os_family] }}"
+    regexp: '^include\s+/etc/chrony\.d/\*\.conf$'
+    line: include /etc/chrony.d/*.conf
+    state: present
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+  notify: Time synchronization | Restart selected provider
+  when:
+    - sasd_time_synchronization_mode == 'apply'
+    - sasd_time_synchronization_manage | bool
+    - sasd_time_synchronization_resolved_provider == 'chrony'
+
+- name: Time synchronization | Enable selected provider service
+  ansible.builtin.service:
+    name: >-
+      {{ sasd_time_synchronization_service[sasd_time_synchronization_resolved_provider]
+         [ansible_facts.os_family] }}
+    enabled: true
+    state: started
+  when:
+    - sasd_time_synchronization_mode == 'apply'
+    - sasd_time_synchronization_manage | bool
+
+- name: Time synchronization | Build audit result
+  ansible.builtin.set_fact:
+    sasd_time_synchronization_result:
+      schema: sasd.time-synchronization.v1
+      host: "{{ inventory_hostname }}"
+      collected_at_utc: "{{ ansible_facts.date_time.iso8601 }}"
+      mode: "{{ sasd_time_synchronization_mode }}"
+      manage_enabled: "{{ sasd_time_synchronization_manage | bool }}"
+      requested_provider: "{{ sasd_time_synchronization_provider }}"
+      resolved_provider: "{{ sasd_time_synchronization_resolved_provider }}"
+      servers: "{{ sasd_time_synchronization_servers }}"
+      timedatectl_rc: "{{ sasd_time_synchronization_timedatectl.rc | default(-1) }}"
+      timedatectl: "{{ sasd_time_synchronization_timedatectl.stdout_lines | default([]) }}"
+
+- name: Time synchronization | Write local JSON report
+  ansible.builtin.include_tasks: ../../sasd_system_baseline/tasks/write-report.yml
+  vars:
+    sasd_report_enabled: "{{ sasd_time_synchronization_report_enabled }}"
+    sasd_report_root: "{{ sasd_time_synchronization_report_root }}"
+    sasd_report_payload: "{{ sasd_time_synchronization_result }}"
+    sasd_report_filename: "{{ inventory_hostname }}.json"

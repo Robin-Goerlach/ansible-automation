@@ -1,0 +1,60 @@
+---
+- name: Diagnostic bundle | Validate controller-side inputs
+  ansible.builtin.assert:
+    that:
+      - sasd_diagnostic_bundle_run_id | length > 0
+      - sasd_diagnostic_bundle_run_id is match('^[A-Za-z0-9._-]+$')
+      - sasd_diagnostic_bundle_source_root is not match('^/')
+      - sasd_diagnostic_bundle_output_root is not match('^/')
+      - sasd_diagnostic_bundle_maximum_file_bytes | int > 0
+    fail_msg: Bundle paths must be repository-relative and the run ID must be safe.
+  delegate_to: localhost
+  run_once: true
+
+- name: Diagnostic bundle | Build sanitized checksummed archive
+  ansible.builtin.script:
+    cmd: build_diagnostic_bundle.py
+  environment:
+    SASD_BUNDLE_REPOSITORY_ROOT: "{{ playbook_dir }}/../.."
+    SASD_BUNDLE_RUN_ID: "{{ sasd_diagnostic_bundle_run_id }}"
+    SASD_BUNDLE_SOURCE_ROOT: "{{ sasd_diagnostic_bundle_source_root }}"
+    SASD_BUNDLE_OUTPUT_ROOT: "{{ sasd_diagnostic_bundle_output_root }}"
+    SASD_BUNDLE_MAXIMUM_FILE_BYTES: >-
+      {{ sasd_diagnostic_bundle_maximum_file_bytes | string }}
+    SASD_BUNDLE_REDACTED_KEY_PATTERNS: >-
+      {{ sasd_diagnostic_bundle_redacted_key_patterns | to_json }}
+    SASD_BUNDLE_RESULT_ROOT: "{{ sasd_diagnostic_bundle_report_root }}"
+  register: sasd_diagnostic_bundle_builder
+  changed_when: true
+  delegate_to: localhost
+  run_once: true
+  when: not ansible_check_mode
+
+- name: Diagnostic bundle | Build check-mode result
+  ansible.builtin.set_fact:
+    sasd_diagnostic_bundle_payload:
+      schema: sasd.diagnostics.bundle.v1
+      run_id: "{{ sasd_diagnostic_bundle_run_id }}"
+      check_mode: true
+      archive_path: ""
+      manifest_path: ""
+      files: []
+      warnings:
+        - Bundle creation was skipped in Ansible check mode.
+  delegate_to: localhost
+  run_once: true
+  when: ansible_check_mode
+
+- name: Diagnostic bundle | Parse builder result
+  ansible.builtin.set_fact:
+    sasd_diagnostic_bundle_payload: >-
+      {{ sasd_diagnostic_bundle_builder.stdout | from_json }}
+  delegate_to: localhost
+  run_once: true
+  when: not ansible_check_mode
+
+- name: Diagnostic bundle | Publish result contract
+  ansible.builtin.set_fact:
+    sasd_diagnostic_bundle_result: "{{ sasd_diagnostic_bundle_payload }}"
+  delegate_to: localhost
+  run_once: true

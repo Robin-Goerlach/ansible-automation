@@ -1,0 +1,60 @@
+---
+milestone:
+  id: M1
+  name: Repository foundation
+  version: 0.1.0
+  status: complete
+  completed_on: "2026-07-09"
+  default_safety_mode: audit
+  objectives:
+    - Repository structure and governance documentation
+    - Reproducible Linux control-node bootstrap
+    - Python bootstrap for managed Linux nodes
+    - Public example inventory without secrets
+    - Safe validation and diagnostic playbooks
+    - Initial system baseline role with audit-first behavior
+    - Local and CI quality gates
+    - English documentation and German orientation documentation
+  deliverables:
+    - path: bootstrap/bootstrap-control-node.sh
+      type: executable
+      status: complete
+    - path: bootstrap/bootstrap-managed-linux.yml
+      type: playbook
+      status: complete
+    - path: inventories/example/hosts.yml
+      type: inventory
+      status: complete
+    - path: playbooks/validation/control-node.yml
+      type: playbook
+      status: complete
+    - path: playbooks/validation/connectivity.yml
+      type: playbook
+      status: complete
+    - path: playbooks/validation/managed-node-readiness.yml
+      type: playbook
+      status: complete
+    - path: playbooks/diagnostics/system-overview.yml
+      type: playbook
+      status: complete
+    - path: roles/sasd_system_baseline
+      type: role
+      status: complete
+    - path: scripts/verify-milestone-1.sh
+      type: executable
+      status: complete
+  acceptance_commands:
+    - scripts/check-inventory.sh
+    - scripts/lint.sh
+    - scripts/syntax-check.sh
+    - scripts/check-manifests.py
+    - scripts/check-documentation-links.py
+    - scripts/verify-milestone-1.sh
+  deferred_to_milestone_2:
+    - Full package lifecycle management
+    - User and group management
+    - sudo policy management
+    - SSH server configuration
+    - Time synchronization
+    - Logging and log rotation
+    - Firewall abstraction

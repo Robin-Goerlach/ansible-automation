@@ -1,0 +1,96 @@
+---
+- name: Audit or apply Linux package updates
+  hosts: linux_managed
+  become: "{{ sasd_updates_mode == 'apply' }}"
+  gather_facts: true
+  vars:
+    sasd_updates_mode: audit
+    sasd_updates_policy: safe
+    sasd_updates_apply_confirmation: ""
+    sasd_updates_report_root: reports/linux-updates
+
+  pre_tasks:
+    - name: Linux updates | Validate safety and policy
+      ansible.builtin.assert:
+        that:
+          - sasd_updates_mode in ['audit', 'apply']
+          - sasd_updates_policy in ['safe', 'full']
+          - >-
+            sasd_updates_mode == 'audit' or
+            sasd_updates_apply_confirmation == 'SASD_APPLY_LINUX_UPDATES'
+        fail_msg: Update apply mode requires SASD_APPLY_LINUX_UPDATES.
+
+  tasks:
+    - name: Linux updates | Collect package facts
+      ansible.builtin.package_facts:
+        manager: auto
+      failed_when: false
+
+    - name: Linux updates | Inspect Debian reboot marker
+      ansible.builtin.stat:
+        path: /var/run/reboot-required
+      register: sasd_updates_reboot_marker
+
+    - name: Linux updates | Apply APT update policy
+      ansible.builtin.apt:
+        update_cache: true
+        upgrade: "{{ 'safe' if sasd_updates_policy == 'safe' else 'dist' }}"
+        autoremove: false
+      register: sasd_updates_apt_result
+      when:
+        - sasd_updates_mode == 'apply'
+        - ansible_facts.pkg_mgr == 'apt'
+
+    - name: Linux updates | Apply DNF update policy
+      ansible.builtin.dnf:
+        name: "*"
+        state: latest  # noqa package-latest
+        update_only: true
+        security: "{{ sasd_updates_policy == 'safe' }}"
+      register: sasd_updates_dnf_result
+      when:
+        - sasd_updates_mode == 'apply'
+        - ansible_facts.pkg_mgr in ['dnf', 'dnf5']
+
+    - name: Linux updates | Apply Zypper update policy
+      ansible.builtin.command:
+        argv: >-
+          {{ ['zypper', '--non-interactive', 'patch']
+             if sasd_updates_policy == 'safe'
+             else ['zypper', '--non-interactive', 'dist-upgrade', '--auto-agree-with-licenses'] }}
+      register: sasd_updates_zypper_result
+      changed_when: >-
+        'Nothing to do' not in sasd_updates_zypper_result.stdout and
+        'No updates found' not in sasd_updates_zypper_result.stdout
+      when:
+        - sasd_updates_mode == 'apply'
+        - ansible_facts.pkg_mgr == 'zypper'
+
+    - name: Linux updates | Build result
+      ansible.builtin.set_fact:
+        sasd_updates_result:
+          schema: sasd.linux-updates.v1
+          host: "{{ inventory_hostname }}"
+          collected_at_utc: "{{ ansible_facts.date_time.iso8601 }}"
+          mode: "{{ sasd_updates_mode }}"
+          policy: "{{ sasd_updates_policy }}"
+          package_manager: "{{ ansible_facts.pkg_mgr }}"
+          reboot_marker_present_before_run: "{{ sasd_updates_reboot_marker.stat.exists }}"
+          installed_package_count: "{{ ansible_facts.packages | default({}) | length }}"
+          implicit_reboot_performed: false
+
+    - name: Linux updates | Create local report directory
+      ansible.builtin.file:
+        path: "{{ playbook_dir }}/../../{{ sasd_updates_report_root }}"
+        state: directory
+        mode: "0750"
+      delegate_to: localhost
+      become: false
+
+    - name: Linux updates | Write local JSON report
+      ansible.builtin.copy:
+        content: "{{ sasd_updates_result | to_nice_json }}\n"
+        dest: "{{ playbook_dir }}/../../{{ sasd_updates_report_root }}/{{ inventory_hostname }}.json"
+        mode: "0640"
+      delegate_to: localhost
+      become: false

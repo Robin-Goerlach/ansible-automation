@@ -1,0 +1,34 @@
+---
+id: milestone-2
+name: Linux baseline
+version: 0.2.0
+status: complete
+completed_on: 2026-07-09
+risk_model:
+  default_mode: audit
+  apply_confirmation: SASD_APPLY_LINUX_BASELINE
+  ssh_requires_separate_opt_in: true
+  firewall_requires_separate_opt_in: true
+  reboot_confirmation: SASD_REBOOT_MANAGED_NODES
+capabilities:
+  - package_management
+  - native_repository_file_management
+  - user_and_group_management
+  - authorized_key_management
+  - validated_sudo_drop_ins
+  - guarded_ssh_configuration
+  - time_synchronization
+  - journald_and_logrotate
+  - firewall_abstraction
+  - update_policy
+  - reboot_policy
+  - consolidated_reports
+  - disposable_vm_scenarios
+acceptance:
+  static_suite: scripts/test.sh
+  runtime_suite: scripts/verify-milestone-2.sh
+  optional_vm_suite: tests/vm/run-matrix.sh
+  documentation:
+    - docs/milestones/milestone-2.md
+    - docs/testing/milestone-2-verification.md
+    - docs/de/milestone-2.md

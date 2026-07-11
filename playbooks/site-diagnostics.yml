@@ -1,0 +1,4 @@
+---
+# Site entry point for a complete read-only snapshot and controller-side bundle.
+- name: Import the full diagnostic bundle playbook
+  ansible.builtin.import_playbook: diagnostics/full-diagnostic-bundle.yml

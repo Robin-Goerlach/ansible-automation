@@ -1,0 +1,38 @@
+---
+name: Bug report
+description: Report incorrect or unsafe automation behavior
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        Do not include secrets, private keys, customer data, production inventory,
+        or unredacted logs.
+  - type: input
+    id: component
+    attributes:
+      label: Component
+      description: Role, playbook, script, or document involved
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Observed behavior
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Sanitized environment information
+      description: Distribution, version, Ansible version, and safe reproduction details
+    validations:
+      required: true

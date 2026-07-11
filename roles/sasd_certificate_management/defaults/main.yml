@@ -1,0 +1,11 @@
+---
+sasd_certificate_management_mode: audit
+sasd_certificate_management_apply_confirmation: ""
+sasd_certificate_management_manage: false
+sasd_certificate_management_certificates: []
+sasd_certificate_management_minimum_remaining_days: 30
+sasd_certificate_management_openssl_candidates:
+  - /usr/bin/openssl
+  - /usr/local/bin/openssl
+sasd_certificate_management_report_enabled: true
+sasd_certificate_management_report_root: reports/web-services/certificates

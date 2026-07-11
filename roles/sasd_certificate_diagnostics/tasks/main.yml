@@ -1,0 +1,70 @@
+---
+- name: Certificate diagnostics | Validate inputs
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.system == 'Linux'
+      - sasd_certificate_diagnostics_minimum_remaining_days | int >= 0
+      - sasd_certificate_diagnostics_timeout_seconds | int in range(1, 61)
+    fail_msg: Certificate diagnostics require Linux and valid thresholds.
+
+- name: Certificate diagnostics | Validate file declarations
+  ansible.builtin.assert:
+    that:
+      - item.name is defined
+      - item.path is defined
+      - item.path is match('^/')
+    fail_msg: Certificate file entries require a name and absolute path.
+  loop: "{{ sasd_certificate_diagnostics_files }}"
+  loop_control:
+    label: "{{ item.name | default('unnamed') }}"
+
+- name: Certificate diagnostics | Validate endpoint declarations
+  ansible.builtin.assert:
+    that:
+      - item.name is defined
+      - item.host is defined
+      - item.port | default(443) | int in range(1, 65536)
+    fail_msg: TLS endpoints require name, host, and an optional valid port.
+  loop: "{{ sasd_certificate_diagnostics_endpoints }}"
+  loop_control:
+    label: "{{ item.name | default('unnamed') }}"
+
+- name: Certificate diagnostics | Run portable collector
+  ansible.builtin.script:
+    cmd: certificate_diagnostics.py
+  environment:
+    SASD_CERTIFICATE_FILES: "{{ sasd_certificate_diagnostics_files | to_json }}"
+    SASD_CERTIFICATE_ENDPOINTS: "{{ sasd_certificate_diagnostics_endpoints | to_json }}"
+    SASD_CERTIFICATE_MINIMUM_REMAINING_DAYS: >-
+      {{ sasd_certificate_diagnostics_minimum_remaining_days | string }}
+    SASD_CERTIFICATE_TIMEOUT_SECONDS: >-
+      {{ sasd_certificate_diagnostics_timeout_seconds | string }}
+  register: sasd_certificate_diagnostics_collector
+  changed_when: false
+  check_mode: false
+
+- name: Certificate diagnostics | Parse collector output
+  ansible.builtin.set_fact:
+    sasd_certificate_diagnostics_payload: >-
+      {{ sasd_certificate_diagnostics_collector.stdout | from_json }}
+
+- name: Certificate diagnostics | Build result contract
+  ansible.builtin.set_fact:
+    sasd_certificate_diagnostics_result:
+      schema: sasd.diagnostics.certificates.v1
+      host: "{{ inventory_hostname }}"
+      collected_at_utc: "{{ ansible_facts.date_time.iso8601 }}"
+      status: "{{ sasd_certificate_diagnostics_payload.status }}"
+      minimum_remaining_days: >-
+        {{ sasd_certificate_diagnostics_minimum_remaining_days | int }}
+      files: "{{ sasd_certificate_diagnostics_payload.files }}"
+      endpoints: "{{ sasd_certificate_diagnostics_payload.endpoints }}"
+      issues: "{{ sasd_certificate_diagnostics_payload.issues }}"
+
+- name: Certificate diagnostics | Write local JSON report
+  ansible.builtin.include_tasks: ../../sasd_system_baseline/tasks/write-report.yml
+  vars:
+    sasd_report_enabled: "{{ sasd_certificate_diagnostics_report_enabled }}"
+    sasd_report_root: "{{ sasd_certificate_diagnostics_report_root }}"
+    sasd_report_payload: "{{ sasd_certificate_diagnostics_result }}"
+    sasd_report_filename: certificates.json

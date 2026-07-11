@@ -1,0 +1,45 @@
+---
+- name: Firewall UFW | Read current status
+  ansible.builtin.command:
+    argv: [ufw, status]
+  register: sasd_firewall_ufw_apply_status
+  changed_when: false
+
+- name: Firewall UFW | Set default incoming policy
+  ansible.builtin.command:
+    argv: [ufw, default, "{{ sasd_firewall_default_incoming }}", incoming]
+  register: sasd_firewall_ufw_default_incoming_result
+  changed_when: "'Default incoming policy changed' in sasd_firewall_ufw_default_incoming_result.stdout"
+
+- name: Firewall UFW | Set default outgoing policy
+  ansible.builtin.command:
+    argv: [ufw, default, "{{ sasd_firewall_default_outgoing }}", outgoing]
+  register: sasd_firewall_ufw_default_outgoing_result
+  changed_when: "'Default outgoing policy changed' in sasd_firewall_ufw_default_outgoing_result.stdout"
+
+- name: Firewall UFW | Apply declared rules
+  ansible.builtin.command:
+    argv:
+      - ufw
+      - "{{ item.action | default('allow') }}"
+      - from
+      - "{{ item.source | default('any') }}"
+      - to
+      - any
+      - port
+      - "{{ item.port | string }}"
+      - proto
+      - "{{ item.protocol | default('tcp') }}"
+  loop: "{{ sasd_firewall_rules }}"
+  loop_control:
+    label: "{{ item.action | default('allow') }} {{ item.port }}/{{ item.protocol | default('tcp') }}"
+  register: sasd_firewall_ufw_rule_results
+  changed_when: >-
+    'Rule added' in sasd_firewall_ufw_rule_results.stdout or
+    'Rule updated' in sasd_firewall_ufw_rule_results.stdout
+
+- name: Firewall UFW | Enable firewall
+  ansible.builtin.command:
+    argv: [ufw, --force, enable]
+  register: sasd_firewall_ufw_enable_result
+  changed_when: "'Firewall is active and enabled' not in sasd_firewall_ufw_apply_status.stdout"

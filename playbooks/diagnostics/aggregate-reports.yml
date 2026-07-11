@@ -1,0 +1,107 @@
+---
+# Purpose: rebuild a correlated summary from already collected component reports.
+# Safety: reads controller-side JSON only and writes one controller-side summary.
+- name: Aggregate existing Milestone 4 diagnostic reports
+  hosts: linux_managed
+  gather_facts: true
+  become: false
+
+  pre_tasks:
+    - name: Diagnostic aggregation | Freeze run identifier
+      ansible.builtin.set_fact:
+        sasd_diagnostics_run_id_effective: >-
+          {{ sasd_diagnostics_run_id | default(ansible_facts.date_time.iso8601_basic_short, true) }}
+        sasd_diagnostics_repository_root: "{{ playbook_dir }}/../.."
+
+    - name: Diagnostic aggregation | Validate run identifier
+      ansible.builtin.assert:
+        that:
+          - sasd_diagnostics_run_id_effective is match('^[A-Za-z0-9._-]+$')
+        fail_msg: The diagnostics run ID may contain only letters, digits, dot, underscore, and hyphen.
+
+    - name: Diagnostic aggregation | Derive controller report directory
+      ansible.builtin.set_fact:
+        sasd_diagnostics_host_report_root: >-
+          {{
+            sasd_diagnostics_report_root | default('reports/diagnostics')
+            ~ '/' ~ sasd_diagnostics_run_id_effective
+            ~ '/' ~ inventory_hostname
+          }}
+        sasd_diagnostics_host_report_path: >-
+          {{
+            sasd_diagnostics_repository_root
+            ~ '/' ~ (sasd_diagnostics_report_root | default('reports/diagnostics'))
+            ~ '/' ~ sasd_diagnostics_run_id_effective
+            ~ '/' ~ inventory_hostname
+          }}
+
+  tasks:
+    - name: Diagnostic aggregation | Load component reports
+      ansible.builtin.set_fact:
+        sasd_resource_diagnostics_result: >-
+          {{ lookup('ansible.builtin.file', sasd_diagnostics_host_report_path ~ '/resources.json') | from_json }}
+        sasd_service_diagnostics_result: >-
+          {{ lookup('ansible.builtin.file', sasd_diagnostics_host_report_path ~ '/services.json') | from_json }}
+        sasd_package_diagnostics_result: >-
+          {{ lookup('ansible.builtin.file', sasd_diagnostics_host_report_path ~ '/packages.json') | from_json }}
+        sasd_network_diagnostics_result: >-
+          {{ lookup('ansible.builtin.file', sasd_diagnostics_host_report_path ~ '/network.json') | from_json }}
+        sasd_certificate_diagnostics_result: >-
+          {{ lookup('ansible.builtin.file', sasd_diagnostics_host_report_path ~ '/certificates.json') | from_json }}
+      no_log: true
+
+    - name: Diagnostic aggregation | Validate component schemas
+      ansible.builtin.assert:
+        that:
+          - sasd_resource_diagnostics_result.schema == 'sasd.diagnostics.resources.v1'
+          - sasd_service_diagnostics_result.schema == 'sasd.diagnostics.services.v1'
+          - sasd_package_diagnostics_result.schema == 'sasd.diagnostics.packages.v1'
+          - sasd_network_diagnostics_result.schema == 'sasd.diagnostics.network.v1'
+          - sasd_certificate_diagnostics_result.schema == 'sasd.diagnostics.certificates.v1'
+        fail_msg: Existing component reports are missing or use an unsupported schema.
+
+    - name: Diagnostic aggregation | Aggregate issues
+      ansible.builtin.set_fact:
+        sasd_diagnostics_all_issues: >-
+          {{
+            sasd_resource_diagnostics_result.issues
+            + sasd_service_diagnostics_result.issues
+            + sasd_package_diagnostics_result.issues
+            + sasd_network_diagnostics_result.issues
+            + sasd_certificate_diagnostics_result.issues
+          }}
+
+    - name: Diagnostic aggregation | Build summary contract
+      ansible.builtin.set_fact:
+        sasd_diagnostics_summary_result:
+          schema: sasd.diagnostics.summary.v1
+          run_id: "{{ sasd_diagnostics_run_id_effective }}"
+          host: "{{ inventory_hostname }}"
+          collected_at_utc: "{{ ansible_facts.date_time.iso8601 }}"
+          platform:
+            distribution: "{{ ansible_facts.distribution }}"
+            version: "{{ ansible_facts.distribution_version }}"
+            architecture: "{{ ansible_facts.architecture }}"
+            kernel: "{{ ansible_facts.kernel }}"
+          status: >-
+            {{
+              'critical'
+              if sasd_diagnostics_all_issues | selectattr('severity', 'equalto', 'critical') | list | length > 0
+              else ('warning' if sasd_diagnostics_all_issues | length > 0 else 'ok')
+            }}
+          issue_count: "{{ sasd_diagnostics_all_issues | length }}"
+          issues: "{{ sasd_diagnostics_all_issues }}"
+          component_status:
+            resources: "{{ sasd_resource_diagnostics_result.status }}"
+            services: "{{ sasd_service_diagnostics_result.status }}"
+            packages: "{{ sasd_package_diagnostics_result.status }}"
+            network: "{{ sasd_network_diagnostics_result.status }}"
+            certificates: "{{ sasd_certificate_diagnostics_result.status }}"
+
+    - name: Diagnostic aggregation | Write summary report
+      ansible.builtin.include_tasks: ../../roles/sasd_system_baseline/tasks/write-report.yml
+      vars:
+        sasd_report_enabled: true
+        sasd_report_root: "{{ sasd_diagnostics_host_report_root }}"
+        sasd_report_payload: "{{ sasd_diagnostics_summary_result }}"
+        sasd_report_filename: summary.json

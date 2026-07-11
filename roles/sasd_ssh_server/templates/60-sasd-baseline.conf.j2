@@ -1,0 +1,13 @@
+# Managed by SASD Ansible Automation. Validate in check mode before applying.
+Port {{ sasd_ssh_server_port }}
+PasswordAuthentication {{ sasd_ssh_server_password_authentication | ternary('yes', 'no') }}
+PermitRootLogin {{ sasd_ssh_server_permit_root_login }}
+PubkeyAuthentication {{ sasd_ssh_server_pubkey_authentication | ternary('yes', 'no') }}
+X11Forwarding {{ sasd_ssh_server_x11_forwarding | ternary('yes', 'no') }}
+AllowTcpForwarding {{ sasd_ssh_server_allow_tcp_forwarding | ternary('yes', 'no') }}
+ClientAliveInterval {{ sasd_ssh_server_client_alive_interval }}
+ClientAliveCountMax {{ sasd_ssh_server_client_alive_count_max }}
+MaxAuthTries {{ sasd_ssh_server_max_auth_tries }}
+{% if sasd_ssh_server_allow_groups | length > 0 %}
+AllowGroups {{ sasd_ssh_server_allow_groups | join(' ') }}
+{% endif %}

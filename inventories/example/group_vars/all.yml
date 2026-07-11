@@ -1,0 +1,100 @@
+---
+# Public example values only. Never put passwords, tokens, private keys, or
+# confidential infrastructure information in this repository.
+sasd_environment: example
+sasd_owner: SASD-Sysadmin
+
+# Global Milestone 2 safety gate. The public inventory is permanently audit-only.
+sasd_linux_baseline_mode: audit
+sasd_linux_baseline_apply_confirmation: ""
+sasd_linux_baseline_report_enabled: true
+sasd_linux_baseline_report_root: reports/linux-baseline
+
+# Package baseline.
+sasd_package_management_manage: true
+sasd_package_management_packages:
+  - ca-certificates
+  - curl
+  - git
+  - rsync
+sasd_package_management_repository_files: []
+sasd_package_management_update_cache: false
+
+# Access baseline. Empty declarations never remove existing accounts or sudo rules.
+sasd_user_management_manage: true
+sasd_user_management_groups: []
+sasd_user_management_users: []
+sasd_sudo_configuration_manage: true
+sasd_sudo_configuration_entries: []
+
+# SSH is deliberately disabled until a private inventory defines and reviews it.
+sasd_ssh_server_manage: false
+sasd_ssh_server_port: 22
+sasd_ssh_server_password_authentication: false
+sasd_ssh_server_permit_root_login: prohibit-password
+
+# Operational baseline.
+sasd_time_synchronization_manage: true
+sasd_time_synchronization_provider: auto
+sasd_time_synchronization_servers:
+  - 0.pool.ntp.org
+  - 1.pool.ntp.org
+sasd_log_management_manage: true
+sasd_log_management_journal_storage: persistent
+sasd_log_management_system_max_use: 1G
+sasd_log_management_logrotate_entries: []
+
+# Firewall is a high-risk opt-in and defaults to no provider.
+sasd_firewall_manage: false
+sasd_firewall_provider: none
+sasd_firewall_rules: []
+
+# Retained Milestone 1 package audit compatibility.
+sasd_system_baseline_mode: audit
+sasd_system_baseline_manage_packages: false
+sasd_system_baseline_report_enabled: true
+sasd_system_baseline_report_root: reports/baseline
+sasd_system_baseline_packages:
+  - ca-certificates
+  - curl
+  - git
+  - rsync
+
+# Milestone 3 web-services baseline. Public examples remain audit-only.
+sasd_web_services_mode: audit
+sasd_web_services_apply_confirmation: ""
+sasd_web_services_server: none
+sasd_web_services_allow_dual_server: false
+sasd_web_services_report_enabled: true
+sasd_web_services_report_root: reports/web-services
+sasd_apache_manage: false
+sasd_apache_virtual_hosts: []
+sasd_nginx_manage: false
+sasd_nginx_virtual_hosts: []
+sasd_php_manage: false
+sasd_php_ini_files: []
+sasd_certificate_management_manage: false
+sasd_certificate_management_certificates: []
+sasd_web_validation_endpoints: []
+
+# Milestone 4 diagnostics. Target-side collection is read-only.
+sasd_diagnostics_report_root: reports/diagnostics
+sasd_resource_diagnostics_load_warning_per_cpu: 1.0
+sasd_resource_diagnostics_memory_available_warning_percent: 15
+sasd_resource_diagnostics_swap_used_warning_percent: 50
+sasd_resource_diagnostics_filesystem_used_warning_percent: 85
+sasd_resource_diagnostics_inode_used_warning_percent: 85
+sasd_resource_diagnostics_top_process_count: 10
+sasd_service_diagnostics_monitored_services: []
+sasd_package_diagnostics_selected_packages:
+  - ca-certificates
+  - curl
+  - git
+sasd_package_diagnostics_collect_pending_updates: true
+sasd_network_diagnostics_dns_names:
+  - localhost
+sasd_network_diagnostics_tcp_targets: []
+sasd_certificate_diagnostics_files: []
+sasd_certificate_diagnostics_endpoints: []
+sasd_certificate_diagnostics_minimum_remaining_days: 30
+sasd_diagnostic_bundle_maximum_file_bytes: 5242880

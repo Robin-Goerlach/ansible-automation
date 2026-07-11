@@ -1,0 +1,67 @@
+---
+- name: Bootstrap Python on managed Linux nodes
+  hosts: linux_managed
+  gather_facts: false
+  become: true
+  any_errors_fatal: false
+
+  pre_tasks:
+    - name: Explain bootstrap check-mode limitation
+      ansible.builtin.debug:
+        msg: >-
+          Python bootstrap uses the raw module and package managers directly.
+          It is intentionally skipped in check mode.
+      when: ansible_check_mode
+
+  tasks:
+    - name: Install Python 3 when it is not yet available
+      ansible.builtin.raw: |
+        set -eu
+        if command -v python3 >/dev/null 2>&1; then
+          echo SASD_PYTHON_PRESENT
+          exit 0
+        fi
+        if [ ! -r /etc/os-release ]; then
+          echo "Cannot detect the Linux distribution" >&2
+          exit 1
+        fi
+        . /etc/os-release
+        distribution=" ${ID:-unknown} ${ID_LIKE:-} "
+        case "${distribution}" in
+          *" debian "*|*" ubuntu "*)
+            export DEBIAN_FRONTEND=noninteractive
+            apt-get update
+            apt-get install -y python3 python3-apt
+            ;;
+          *" fedora "*|*" rhel "*|*" centos "*)
+            dnf install -y python3
+            ;;
+          *" suse "*|*" opensuse "*)
+            zypper --non-interactive refresh
+            zypper --non-interactive install python3
+            ;;
+          *)
+            echo "Unsupported distribution: ID=${ID:-unknown} ID_LIKE=${ID_LIKE:-}" >&2
+            exit 1
+            ;;
+        esac
+        command -v python3 >/dev/null 2>&1
+        echo SASD_PYTHON_INSTALLED
+      register: sasd_python_bootstrap
+      changed_when: "'SASD_PYTHON_INSTALLED' in sasd_python_bootstrap.stdout"
+      when: not ansible_check_mode
+
+    - name: Gather facts after Python bootstrap
+      ansible.builtin.setup:
+
+    - name: Validate the bootstrapped managed node
+      ansible.builtin.assert:
+        that:
+          - ansible_facts.system == 'Linux'
+          - ansible_facts.python.version.major | int >= 3
+        fail_msg: >-
+          Managed node {{ inventory_hostname }} does not provide the required
+          Linux and Python 3 runtime after bootstrap.
+        success_msg: >-
+          Managed node {{ inventory_hostname }} is ready with
+          {{ ansible_facts.python.executable }}.

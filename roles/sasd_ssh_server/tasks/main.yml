@@ -1,0 +1,124 @@
+---
+- name: SSH server | Validate safety and settings
+  ansible.builtin.assert:
+    that:
+      - sasd_ssh_server_mode in ['audit', 'apply']
+      - sasd_ssh_server_port | int >= 1
+      - sasd_ssh_server_port | int <= 65535
+      - sasd_ssh_server_permit_root_login in ['yes', 'no', 'prohibit-password', 'forced-commands-only']
+      - >-
+        sasd_ssh_server_mode == 'audit' or
+        sasd_ssh_server_apply_confirmation == 'SASD_APPLY_LINUX_BASELINE'
+    fail_msg: SSH apply mode requires valid settings and the exact Milestone 2 confirmation token.
+
+- name: SSH server | Locate sshd binary candidates
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop: "{{ sasd_ssh_server_binary_candidates }}"
+  register: sasd_ssh_server_binary_stats
+
+- name: SSH server | Select sshd binary
+  ansible.builtin.set_fact:
+    sasd_ssh_server_binary: >-
+      {{ (sasd_ssh_server_binary_stats.results |
+          selectattr('stat.exists') | map(attribute='item') | first) | default('') }}
+
+- name: SSH server | Inspect current drop-in
+  ansible.builtin.stat:
+    path: "{{ sasd_ssh_server_drop_in }}"
+  register: sasd_ssh_server_drop_in_stat
+
+- name: SSH server | Read current drop-in for rollback
+  ansible.builtin.slurp:
+    src: "{{ sasd_ssh_server_drop_in }}"
+  register: sasd_ssh_server_previous_drop_in
+  when:
+    - sasd_ssh_server_drop_in_stat.stat.exists
+    - sasd_ssh_server_mode == 'apply'
+    - sasd_ssh_server_manage | bool
+
+- name: SSH server | Audit effective configuration when sshd exists
+  ansible.builtin.command:
+    argv: ["{{ sasd_ssh_server_binary }}", -T]
+  register: sasd_ssh_server_effective_config
+  changed_when: false
+  failed_when: false
+  when: sasd_ssh_server_binary | length > 0
+
+- name: SSH server | Apply, validate, and protect the SSH drop-in
+  when:
+    - sasd_ssh_server_mode == 'apply'
+    - sasd_ssh_server_manage | bool
+  block:
+    - name: SSH server | Require an installed sshd binary
+      ansible.builtin.assert:
+        that:
+          - sasd_ssh_server_binary | length > 0
+        fail_msg: OpenSSH server must be installed before enabling SSH management.
+
+    - name: SSH server | Ensure drop-in directory exists
+      ansible.builtin.file:
+        path: /etc/ssh/sshd_config.d
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: SSH server | Render managed drop-in
+      ansible.builtin.template:
+        src: 60-sasd-baseline.conf.j2
+        dest: "{{ sasd_ssh_server_drop_in }}"
+        owner: root
+        group: root
+        mode: "0644"
+        backup: true
+      notify: SSH server | Reload OpenSSH
+
+    - name: SSH server | Validate complete OpenSSH configuration
+      ansible.builtin.command:
+        argv: ["{{ sasd_ssh_server_binary }}", -t]
+      changed_when: false
+      when: not ansible_check_mode
+
+  rescue:
+    - name: SSH server | Restore previous drop-in content
+      ansible.builtin.copy:
+        content: "{{ sasd_ssh_server_previous_drop_in.content | b64decode }}"
+        dest: "{{ sasd_ssh_server_drop_in }}"
+        owner: root
+        group: root
+        mode: "0644"
+      when: sasd_ssh_server_drop_in_stat.stat.exists
+
+    - name: SSH server | Remove newly created invalid drop-in
+      ansible.builtin.file:
+        path: "{{ sasd_ssh_server_drop_in }}"
+        state: absent
+      when: not sasd_ssh_server_drop_in_stat.stat.exists
+
+    - name: SSH server | Stop after restoring the previous configuration
+      ansible.builtin.fail:
+        msg: OpenSSH validation failed; the previous drop-in state was restored.
+
+- name: SSH server | Build audit result
+  ansible.builtin.set_fact:
+    sasd_ssh_server_result:
+      schema: sasd.ssh-server.v1
+      host: "{{ inventory_hostname }}"
+      collected_at_utc: "{{ ansible_facts.date_time.iso8601 }}"
+      mode: "{{ sasd_ssh_server_mode }}"
+      manage_enabled: "{{ sasd_ssh_server_manage | bool }}"
+      sshd_binary: "{{ sasd_ssh_server_binary }}"
+      drop_in: "{{ sasd_ssh_server_drop_in }}"
+      drop_in_present: "{{ sasd_ssh_server_drop_in_stat.stat.exists }}"
+      requested_port: "{{ sasd_ssh_server_port | int }}"
+      requested_password_authentication: "{{ sasd_ssh_server_password_authentication | bool }}"
+      validation_capable: "{{ sasd_ssh_server_binary | length > 0 }}"
+
+- name: SSH server | Write local JSON report
+  ansible.builtin.include_tasks: ../../sasd_system_baseline/tasks/write-report.yml
+  vars:
+    sasd_report_enabled: "{{ sasd_ssh_server_report_enabled }}"
+    sasd_report_root: "{{ sasd_ssh_server_report_root }}"
+    sasd_report_payload: "{{ sasd_ssh_server_result }}"
+    sasd_report_filename: "{{ inventory_hostname }}.json"

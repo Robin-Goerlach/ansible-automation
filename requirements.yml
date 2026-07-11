@@ -1,0 +1,11 @@
+---
+# Milestone 3 runtime content intentionally uses ansible.builtin only so that
+# audit and baseline execution remain possible without Ansible Galaxy. These
+# collections are reserved for later feature milestones and extensions.
+collections:
+  - name: ansible.posix
+  - name: community.crypto
+  - name: community.docker
+  - name: community.general
+  - name: community.mysql
+  - name: community.postgresql

@@ -1,0 +1,30 @@
+---
+id: milestone-3
+name: Web services
+version: 0.3.0
+status: complete
+completed_on: 2026-07-09
+risk_model:
+  default_mode: audit
+  apply_confirmation: SASD_APPLY_WEB_SERVICES
+  component_manage_opt_in: true
+  dual_server_requires_separate_opt_in: true
+capabilities:
+  - apache_package_service_and_virtual_hosts
+  - nginx_package_service_and_virtual_hosts
+  - php_cli_fpm_extensions_and_ini_drop_ins
+  - tls_certificate_and_private_key_audit
+  - guarded_certificate_deployment
+  - self_signed_lab_certificates
+  - native_configuration_validation
+  - file_level_rollback
+  - http_https_endpoint_validation
+  - consolidated_reports
+  - isolated_template_acceptance
+acceptance:
+  static_suite: scripts/test.sh
+  runtime_suite: scripts/verify-milestone-3.sh
+  documentation:
+    - docs/milestones/milestone-3.md
+    - docs/testing/milestone-3-verification.md
+    - docs/de/milestone-3.md

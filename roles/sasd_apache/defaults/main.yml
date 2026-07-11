@@ -1,0 +1,19 @@
+---
+sasd_apache_mode: audit
+sasd_apache_apply_confirmation: ""
+sasd_apache_manage: false
+sasd_apache_manage_packages: true
+sasd_apache_packages: []
+sasd_apache_manage_service: true
+sasd_apache_service_name: ""
+sasd_apache_service_enabled: true
+sasd_apache_service_state: started
+sasd_apache_modules: []
+sasd_apache_virtual_hosts: []
+sasd_apache_binary_candidates:
+  - /usr/sbin/apache2ctl
+  - /usr/sbin/apachectl
+  - /usr/bin/apache2ctl
+  - /usr/bin/apachectl
+sasd_apache_report_enabled: true
+sasd_apache_report_root: reports/web-services/apache

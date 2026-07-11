@@ -1,0 +1,109 @@
+---
+- name: Certificate | Validate declaration
+  ansible.builtin.assert:
+    that:
+      - sasd_certificate.name is defined
+      - sasd_certificate.name is match(sasd_certificate_management_allowed_name_pattern)
+      - sasd_certificate.state | default('present') in ['present', 'absent']
+      - sasd_certificate.certificate_path is defined
+      - sasd_certificate.private_key_path is defined
+      - sasd_certificate.certificate_path is match(sasd_certificate_management_allowed_certificate_path_pattern)
+      - sasd_certificate.private_key_path is match(sasd_certificate_management_allowed_private_key_path_pattern)
+      - sasd_certificate.source | default('provided') in ['provided', 'self_signed']
+      - >-
+        sasd_certificate.state | default('present') == 'absent' or
+        sasd_certificate.source | default('provided') == 'self_signed' or
+        (sasd_certificate.certificate_content is defined and sasd_certificate.private_key_content is defined)
+    fail_msg: "Invalid TLS certificate declaration: {{ sasd_certificate.name | default('unnamed') }}"
+
+- name: Certificate | Inspect certificate file
+  ansible.builtin.stat:
+    path: "{{ sasd_certificate.certificate_path }}"
+  register: sasd_certificate_management_file_stat
+
+- name: Certificate | Inspect private-key file
+  ansible.builtin.stat:
+    path: "{{ sasd_certificate.private_key_path }}"
+  register: sasd_certificate_management_key_stat
+
+- name: Certificate | Read metadata
+  ansible.builtin.command:
+    argv:
+      - "{{ sasd_certificate_management_openssl_binary }}"
+      - x509
+      - -in
+      - "{{ sasd_certificate.certificate_path }}"
+      - -noout
+      - -subject
+      - -issuer
+      - -serial
+      - -dates
+  register: sasd_certificate_management_metadata
+  changed_when: false
+  failed_when: false
+  when: sasd_certificate_management_file_stat.stat.exists
+
+- name: Certificate | Check minimum remaining validity
+  ansible.builtin.command:
+    argv:
+      - "{{ sasd_certificate_management_openssl_binary }}"
+      - x509
+      - -checkend
+      - "{{ (sasd_certificate.minimum_remaining_days |
+          default(sasd_certificate_management_minimum_remaining_days) | int) * 86400 }}"
+      - -noout
+      - -in
+      - "{{ sasd_certificate.certificate_path }}"
+  register: sasd_certificate_management_checkend
+  changed_when: false
+  failed_when: false
+  when: sasd_certificate_management_file_stat.stat.exists
+
+- name: Certificate | Read certificate public key
+  ansible.builtin.command:
+    argv:
+      - "{{ sasd_certificate_management_openssl_binary }}"
+      - x509
+      - -in
+      - "{{ sasd_certificate.certificate_path }}"
+      - -pubkey
+      - -noout
+  register: sasd_certificate_management_public_key
+  changed_when: false
+  failed_when: false
+  when: sasd_certificate_management_file_stat.stat.exists
+
+- name: Certificate | Read private-key public key
+  ansible.builtin.command:
+    argv:
+      - "{{ sasd_certificate_management_openssl_binary }}"
+      - pkey
+      - -in
+      - "{{ sasd_certificate.private_key_path }}"
+      - -pubout
+  register: sasd_certificate_management_private_key_public_key
+  changed_when: false
+  failed_when: false
+  no_log: true
+  when: sasd_certificate_management_key_stat.stat.exists
+
+- name: Certificate | Append audit result
+  ansible.builtin.set_fact:
+    sasd_certificate_management_results: >-
+      {{ sasd_certificate_management_results + [{
+        'name': sasd_certificate.name,
+        'state': sasd_certificate.state | default('present'),
+        'source': sasd_certificate.source | default('provided'),
+        'certificate_path': sasd_certificate.certificate_path,
+        'private_key_path': sasd_certificate.private_key_path,
+        'certificate_present': sasd_certificate_management_file_stat.stat.exists,
+        'private_key_present': sasd_certificate_management_key_stat.stat.exists,
+        'metadata_valid': (sasd_certificate_management_metadata.rc | default(127)) == 0,
+        'minimum_validity_satisfied': (sasd_certificate_management_checkend.rc | default(127)) == 0,
+        'key_pair_matches': (
+          sasd_certificate_management_public_key.stdout | default('CERTIFICATE_KEY_UNAVAILABLE')
+        ) == (
+          sasd_certificate_management_private_key_public_key.stdout | default('PRIVATE_KEY_UNAVAILABLE')
+        ),
+        'metadata': sasd_certificate_management_metadata.stdout_lines | default([])
+      }] }}

@@ -1,0 +1,81 @@
+---
+- name: Exercise Milestone 3 apply paths in check mode only
+  hosts: localhost
+  connection: local
+  become: false
+  gather_facts: true
+  vars:
+    sasd_certificate_management_mode: apply
+    sasd_certificate_management_apply_confirmation: SASD_APPLY_WEB_SERVICES
+    sasd_certificate_management_manage: true
+    sasd_certificate_management_certificates: []
+    sasd_certificate_management_report_enabled: false
+
+    sasd_php_mode: apply
+    sasd_php_apply_confirmation: SASD_APPLY_WEB_SERVICES
+    sasd_php_manage: true
+    sasd_php_manage_packages: false
+    sasd_php_manage_fpm_service: false
+    sasd_php_cli_binary_candidates: [/usr/bin/true]
+    sasd_php_fpm_binary_candidates: [/path/that/does/not/exist]
+    sasd_php_ini_files:
+      - path: /etc/php/99-sasd-milestone-3-check.ini
+        settings:
+          expose_php: "Off"
+          memory_limit: 128M
+    sasd_php_report_enabled: false
+
+    sasd_apache_mode: apply
+    sasd_apache_apply_confirmation: SASD_APPLY_WEB_SERVICES
+    sasd_apache_manage: true
+    sasd_apache_manage_packages: false
+    sasd_apache_manage_service: false
+    sasd_apache_binary_candidates: [/usr/bin/true]
+    sasd_apache_virtual_hosts:
+      - name: sasd-milestone-3-check
+        server_name: apache-check.example.test
+        port: 8080
+        document_root: /var/www/sasd-milestone-3-check-apache
+    sasd_apache_report_enabled: false
+
+    sasd_nginx_mode: apply
+    sasd_nginx_apply_confirmation: SASD_APPLY_WEB_SERVICES
+    sasd_nginx_manage: true
+    sasd_nginx_manage_packages: false
+    sasd_nginx_manage_service: false
+    sasd_nginx_binary_candidates: [/usr/bin/true]
+    sasd_nginx_virtual_hosts:
+      - name: sasd-milestone-3-check
+        server_name: nginx-check.example.test
+        port: 8081
+        document_root: /var/www/sasd-milestone-3-check-nginx
+    sasd_nginx_report_enabled: false
+  roles:
+    - role: sasd_certificate_management
+      tags: [certificate_management]
+    - role: sasd_php
+      tags: [php]
+    - role: sasd_apache
+      tags: [apache]
+    - role: sasd_nginx
+      tags: [nginx]
+  tasks:
+    - name: Check-mode apply | Confirm no test path was created
+      tags: [always]
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      loop:
+        - /etc/php/99-sasd-milestone-3-check.ini
+        - /var/www/sasd-milestone-3-check-apache
+        - /var/www/sasd-milestone-3-check-nginx
+      register: sasd_milestone_3_check_mode_paths
+
+    - name: Check-mode apply | Assert managed-node filesystem stayed unchanged
+      tags: [always]
+      ansible.builtin.assert:
+        that:
+          - not item.stat.exists
+        fail_msg: "Check-mode test unexpectedly created {{ item.item }}"
+      loop: "{{ sasd_milestone_3_check_mode_paths.results }}"
+      loop_control:
+        label: "{{ item.item }}"

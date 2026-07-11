@@ -1,0 +1,4 @@
+; Managed by SASD Ansible Automation. Local edits will be overwritten.
+{% for setting_name, setting_value in sasd_php_ini_file.settings | dictsort %}
+{{ setting_name }} = {{ setting_value }}
+{% endfor %}

@@ -1,0 +1,32 @@
+---
+extends: default
+
+ignore: |
+  .venv/
+  .cache/
+  collections/ansible_collections/
+  reports/
+  artifacts/
+  diagnostic-bundles/
+
+rules:
+  braces:
+    min-spaces-inside: 0
+    max-spaces-inside: 1
+  brackets:
+    min-spaces-inside: 0
+    max-spaces-inside: 1
+  comments:
+    min-spaces-from-content: 1
+  comments-indentation: false
+  document-start:
+    present: true
+  line-length:
+    max: 120
+    level: warning
+  octal-values:
+    forbid-implicit-octal: true
+    forbid-explicit-octal: true
+  truthy:
+    allowed-values: ["true", "false"]
+    check-keys: false

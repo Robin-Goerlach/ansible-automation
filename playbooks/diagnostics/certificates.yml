@@ -1,0 +1,23 @@
+---
+# Purpose: inspect declared certificate files and TLS endpoints.
+# Safety: private keys are never opened and no application payload is transmitted.
+- name: Collect certificate diagnostics
+  hosts: linux_managed
+  gather_facts: true
+  become: false
+
+  pre_tasks:
+    - name: Certificate diagnostics | Freeze run identifier
+      ansible.builtin.set_fact:
+        sasd_diagnostics_run_id_effective: >-
+          {{ sasd_diagnostics_run_id | default(ansible_facts.date_time.iso8601_basic_short, true) }}
+
+  roles:
+    - role: sasd_certificate_diagnostics
+      vars:
+        sasd_certificate_diagnostics_report_root: >-
+          {{
+            sasd_diagnostics_report_root | default('reports/diagnostics')
+            ~ '/' ~ sasd_diagnostics_run_id_effective
+            ~ '/' ~ inventory_hostname
+          }}

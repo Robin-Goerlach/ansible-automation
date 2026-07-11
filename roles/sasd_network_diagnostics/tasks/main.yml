@@ -1,0 +1,62 @@
+---
+- name: Network diagnostics | Validate inputs
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.system == 'Linux'
+      - sasd_network_diagnostics_timeout_seconds | int in range(1, 61)
+    fail_msg: Network diagnostics require Linux and a timeout from 1 to 60 seconds.
+
+- name: Network diagnostics | Validate TCP target declarations
+  ansible.builtin.assert:
+    that:
+      - item.name is defined
+      - item.host is defined
+      - item.port is defined
+      - item.port | int in range(1, 65536)
+    fail_msg: Each TCP target requires name, host, and a valid port.
+  loop: "{{ sasd_network_diagnostics_tcp_targets }}"
+  loop_control:
+    label: "{{ item.name | default('unnamed') }}"
+
+- name: Network diagnostics | Run portable collector
+  ansible.builtin.script:
+    cmd: network_diagnostics.py
+  environment:
+    SASD_NETWORK_DNS_NAMES: "{{ sasd_network_diagnostics_dns_names | to_json }}"
+    SASD_NETWORK_TCP_TARGETS: "{{ sasd_network_diagnostics_tcp_targets | to_json }}"
+    SASD_NETWORK_TIMEOUT_SECONDS: >-
+      {{ sasd_network_diagnostics_timeout_seconds | string }}
+    SASD_NETWORK_INCLUDE_LOOPBACK: >-
+      {{ sasd_network_diagnostics_include_loopback | bool | string | lower }}
+  register: sasd_network_diagnostics_collector
+  changed_when: false
+  check_mode: false
+
+- name: Network diagnostics | Parse collector output
+  ansible.builtin.set_fact:
+    sasd_network_diagnostics_payload: >-
+      {{ sasd_network_diagnostics_collector.stdout | from_json }}
+
+- name: Network diagnostics | Build result contract
+  ansible.builtin.set_fact:
+    sasd_network_diagnostics_result:
+      schema: sasd.diagnostics.network.v1
+      host: "{{ inventory_hostname }}"
+      collected_at_utc: "{{ ansible_facts.date_time.iso8601 }}"
+      status: "{{ sasd_network_diagnostics_payload.status }}"
+      interfaces: "{{ sasd_network_diagnostics_payload.interfaces }}"
+      routes: "{{ sasd_network_diagnostics_payload.routes }}"
+      resolver: "{{ sasd_network_diagnostics_payload.resolver }}"
+      listening_sockets: "{{ sasd_network_diagnostics_payload.listening_sockets }}"
+      dns_queries: "{{ sasd_network_diagnostics_payload.dns_queries }}"
+      tcp_checks: "{{ sasd_network_diagnostics_payload.tcp_checks }}"
+      tools: "{{ sasd_network_diagnostics_payload.tools }}"
+      issues: "{{ sasd_network_diagnostics_payload.issues }}"
+
+- name: Network diagnostics | Write local JSON report
+  ansible.builtin.include_tasks: ../../sasd_system_baseline/tasks/write-report.yml
+  vars:
+    sasd_report_enabled: "{{ sasd_network_diagnostics_report_enabled }}"
+    sasd_report_root: "{{ sasd_network_diagnostics_report_root }}"
+    sasd_report_payload: "{{ sasd_network_diagnostics_result }}"
+    sasd_report_filename: network.json

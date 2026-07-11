@@ -1,0 +1,32 @@
+---
+name: Feature request
+description: Propose new automation or documentation
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Operational problem
+      description: Describe the problem before proposing a specific implementation.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed automation
+    validations:
+      required: true
+  - type: dropdown
+    id: risk
+    attributes:
+      label: Expected risk level
+      options:
+        - Level 0 - diagnostic
+        - Level 1 - low-risk correction
+        - Level 2 - controlled change
+        - Level 3 - potentially destructive
+        - Not yet assessed
+    validations:
+      required: true

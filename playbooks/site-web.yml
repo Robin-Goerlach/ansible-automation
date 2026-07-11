@@ -1,0 +1,6 @@
+---
+- name: Validate managed-node readiness before web provisioning
+  ansible.builtin.import_playbook: validation/managed-node-readiness.yml
+
+- name: Audit or apply web services
+  ansible.builtin.import_playbook: provisioning/web-services.yml

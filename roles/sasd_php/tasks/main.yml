@@ -1,0 +1,151 @@
+---
+- name: PHP | Validate safety and platform
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.system == 'Linux'
+      - ansible_facts.os_family in sasd_php_packages_by_family
+      - sasd_php_mode in ['audit', 'apply']
+      - >-
+        sasd_php_mode == 'audit' or
+        sasd_php_apply_confirmation == 'SASD_APPLY_WEB_SERVICES'
+    fail_msg: PHP apply mode requires a supported Linux family and the exact Milestone 3 token.
+
+- name: PHP | Derive requested packages
+  ansible.builtin.set_fact:
+    sasd_php_effective_packages: >-
+      {{ (sasd_php_packages if sasd_php_packages | length > 0
+          else sasd_php_packages_by_family[ansible_facts.os_family]) + sasd_php_extension_packages }}
+
+- name: PHP | Install approved packages and extensions
+  ansible.builtin.package:
+    name: "{{ sasd_php_effective_packages | unique }}"
+    state: present
+  when:
+    - sasd_php_mode == 'apply'
+    - sasd_php_manage | bool
+    - sasd_php_manage_packages | bool
+
+- name: PHP | Locate CLI binary
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop: "{{ sasd_php_cli_binary_candidates }}"
+  register: sasd_php_cli_binary_stats
+
+- name: PHP | Locate FPM binary
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop: "{{ sasd_php_fpm_binary_candidates }}"
+  register: sasd_php_fpm_binary_stats
+
+- name: PHP | Select runtime binaries
+  ansible.builtin.set_fact:
+    sasd_php_cli_binary: >-
+      {{ (sasd_php_cli_binary_stats.results | selectattr('stat.exists') |
+          map(attribute='item') | first) | default('') }}
+    sasd_php_fpm_binary: >-
+      {{ (sasd_php_fpm_binary_stats.results | selectattr('stat.exists') |
+          map(attribute='item') | first) | default('') }}
+
+- name: PHP | Collect package facts
+  ansible.builtin.package_facts:
+    manager: auto
+  failed_when: false
+
+- name: PHP | Collect service facts
+  ansible.builtin.service_facts:
+  failed_when: false
+
+- name: PHP | Detect FPM service name
+  ansible.builtin.set_fact:
+    sasd_php_effective_fpm_service_name: >-
+      {{ sasd_php_fpm_service_name if sasd_php_fpm_service_name | length > 0 else
+         ((ansible_facts.services | default({}) | dict2items |
+           selectattr('key', 'match', '^php.*-fpm\.service$') |
+           map(attribute='key') | first | default('')) | regex_replace('\.service$', '')) }}
+
+- name: PHP | Audit CLI version
+  ansible.builtin.command:
+    argv: ["{{ sasd_php_cli_binary }}", -v]
+  register: sasd_php_cli_version
+  changed_when: false
+  failed_when: false
+  when: sasd_php_cli_binary | length > 0
+
+- name: PHP | Audit CLI INI locations
+  ansible.builtin.command:
+    argv: ["{{ sasd_php_cli_binary }}", --ini]
+  register: sasd_php_ini_locations
+  changed_when: false
+  failed_when: false
+  when: sasd_php_cli_binary | length > 0
+
+- name: PHP | Audit FPM configuration
+  ansible.builtin.command:
+    argv: ["{{ sasd_php_fpm_binary }}", -t]
+  register: sasd_php_fpm_configtest
+  changed_when: false
+  failed_when: false
+  when: sasd_php_fpm_binary | length > 0
+
+- name: PHP | Inspect declared INI files
+  ansible.builtin.stat:
+    path: "{{ item.path }}"
+  loop: "{{ sasd_php_ini_files }}"
+  loop_control:
+    label: "{{ item.path | default('missing-path') }}"
+  register: sasd_php_ini_stats
+  when: item.path is defined
+
+- name: PHP | Manage declared INI files
+  ansible.builtin.include_tasks: manage-ini.yml
+  loop: "{{ sasd_php_ini_files }}"
+  loop_control:
+    loop_var: sasd_php_ini_file
+    label: "{{ sasd_php_ini_file.path | default('missing-path') }}"
+  when:
+    - sasd_php_mode == 'apply'
+    - sasd_php_manage | bool
+
+- name: PHP | Ensure FPM service is enabled and started
+  ansible.builtin.service:
+    name: "{{ sasd_php_effective_fpm_service_name }}"
+    enabled: true
+    state: started
+  when:
+    - sasd_php_mode == 'apply'
+    - sasd_php_manage | bool
+    - sasd_php_manage_fpm_service | bool
+    - sasd_php_effective_fpm_service_name | length > 0
+
+- name: PHP | Build audit result
+  ansible.builtin.set_fact:
+    sasd_php_result:
+      schema: sasd.php.v1
+      host: "{{ inventory_hostname }}"
+      collected_at_utc: "{{ ansible_facts.date_time.iso8601 }}"
+      mode: "{{ sasd_php_mode }}"
+      manage_enabled: "{{ sasd_php_manage | bool }}"
+      requested_packages: "{{ sasd_php_effective_packages | unique }}"
+      installed_packages: >-
+        {{ sasd_php_effective_packages | unique |
+           select('in', ansible_facts.packages | default({})) | list }}
+      cli_binary: "{{ sasd_php_cli_binary }}"
+      cli_available: "{{ sasd_php_cli_binary | length > 0 }}"
+      cli_version: "{{ (sasd_php_cli_version.stdout_lines | default([]) | first) | default('unavailable') }}"
+      fpm_binary: "{{ sasd_php_fpm_binary }}"
+      fpm_service_name: "{{ sasd_php_effective_fpm_service_name }}"
+      fpm_configuration_valid: >-
+        {{ (sasd_php_fpm_configtest.rc | default(127)) == 0 }}
+      ini_files_declared: "{{ sasd_php_ini_files | map(attribute='path') | list }}"
+      ini_files_present: >-
+        {{ sasd_php_ini_stats.results | default([]) |
+           selectattr('stat.exists', 'defined') | selectattr('stat.exists') |
+           map(attribute='item.path') | list }}
+
+- name: PHP | Write local JSON report
+  ansible.builtin.include_tasks: ../../sasd_system_baseline/tasks/write-report.yml
+  vars:
+    sasd_report_enabled: "{{ sasd_php_report_enabled }}"
+    sasd_report_root: "{{ sasd_php_report_root }}"
+    sasd_report_payload: "{{ sasd_php_result }}"
+    sasd_report_filename: "{{ inventory_hostname }}.json"

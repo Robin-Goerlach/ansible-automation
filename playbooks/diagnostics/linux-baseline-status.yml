@@ -1,0 +1,6 @@
+---
+- name: Produce complete Linux-baseline status report
+  ansible.builtin.import_playbook: ../provisioning/linux-baseline.yml
+  vars:
+    sasd_linux_baseline_mode: audit
+    sasd_linux_baseline_apply_confirmation: ""

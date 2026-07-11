@@ -1,0 +1,15 @@
+---
+sasd_diagnostic_bundle_run_id: ""
+sasd_diagnostic_bundle_source_root: reports/diagnostics
+sasd_diagnostic_bundle_output_root: diagnostic-bundles
+sasd_diagnostic_bundle_maximum_file_bytes: 5242880
+sasd_diagnostic_bundle_redacted_key_patterns:
+  - authorization
+  - cookie
+  - credential
+  - password
+  - private_key
+  - secret
+  - token
+sasd_diagnostic_bundle_report_enabled: true
+sasd_diagnostic_bundle_report_root: reports/diagnostics/bundles

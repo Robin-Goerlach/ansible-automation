@@ -1,0 +1,9 @@
+---
+- name: PHP | Reload FPM service
+  ansible.builtin.service:
+    name: "{{ sasd_php_effective_fpm_service_name }}"
+    state: reloaded
+  when:
+    - not ansible_check_mode
+    - sasd_php_manage_fpm_service | bool
+    - sasd_php_effective_fpm_service_name | length > 0

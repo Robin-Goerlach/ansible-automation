@@ -1,0 +1,8 @@
+---
+sasd_network_diagnostics_dns_names:
+  - localhost
+sasd_network_diagnostics_tcp_targets: []
+sasd_network_diagnostics_timeout_seconds: 3
+sasd_network_diagnostics_include_loopback: true
+sasd_network_diagnostics_report_enabled: true
+sasd_network_diagnostics_report_root: reports/diagnostics/network

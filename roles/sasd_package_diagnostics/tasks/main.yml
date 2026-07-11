@@ -1,0 +1,256 @@
+---
+- name: Package diagnostics | Validate inputs
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.system == 'Linux'
+      - sasd_package_diagnostics_maximum_update_items | int in range(1, 1001)
+    fail_msg: Package diagnostics require Linux and a bounded update-item limit.
+
+- name: Package diagnostics | Collect installed package facts
+  ansible.builtin.package_facts:
+    manager: auto
+  register: sasd_package_diagnostics_package_facts_call
+  failed_when: false
+
+- name: Package diagnostics | Inspect known package lock paths
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop: "{{ sasd_package_diagnostics_lock_paths }}"
+  loop_control:
+    label: "{{ item }}"
+  register: sasd_package_diagnostics_lock_stats
+
+- name: Package diagnostics | Inspect reboot-required marker
+  ansible.builtin.stat:
+    path: /var/run/reboot-required
+  register: sasd_package_diagnostics_reboot_required
+
+- name: Package diagnostics | Initialize update query result
+  ansible.builtin.set_fact:
+    sasd_package_diagnostics_update_query:
+      rc: null
+      stdout_lines: []
+      supported: false
+
+- name: Package diagnostics | Simulate APT upgrade
+  ansible.builtin.command:
+    argv:
+      - apt-get
+      - -s
+      - -o
+      - Debug::NoLocking=true
+      - upgrade
+  environment:
+    LC_ALL: C
+  register: sasd_package_diagnostics_apt_query
+  changed_when: false
+  check_mode: false
+  failed_when: false
+  when:
+    - sasd_package_diagnostics_collect_pending_updates | bool
+    - ansible_facts.pkg_mgr == 'apt'
+
+- name: Package diagnostics | Query DNF updates
+  ansible.builtin.command:
+    argv:
+      - dnf
+      - -q
+      - check-update
+  environment:
+    LC_ALL: C
+  register: sasd_package_diagnostics_dnf_query
+  changed_when: false
+  check_mode: false
+  failed_when: sasd_package_diagnostics_dnf_query.rc not in [0, 100]
+  when:
+    - sasd_package_diagnostics_collect_pending_updates | bool
+    - ansible_facts.pkg_mgr == 'dnf'
+
+- name: Package diagnostics | Query YUM updates
+  ansible.builtin.command:
+    argv:
+      - yum
+      - -q
+      - check-update
+  environment:
+    LC_ALL: C
+  register: sasd_package_diagnostics_yum_query
+  changed_when: false
+  check_mode: false
+  failed_when: sasd_package_diagnostics_yum_query.rc not in [0, 100]
+  when:
+    - sasd_package_diagnostics_collect_pending_updates | bool
+    - ansible_facts.pkg_mgr == 'yum'
+
+- name: Package diagnostics | Query Zypper updates
+  ansible.builtin.command:
+    argv:
+      - zypper
+      - --non-interactive
+      - --no-refresh
+      - list-updates
+  environment:
+    LC_ALL: C
+  register: sasd_package_diagnostics_zypper_query
+  changed_when: false
+  check_mode: false
+  failed_when: false
+  when:
+    - sasd_package_diagnostics_collect_pending_updates | bool
+    - ansible_facts.pkg_mgr == 'zypper'
+
+- name: Package diagnostics | Select package-manager query result
+  ansible.builtin.set_fact:
+    sasd_package_diagnostics_update_query: >-
+      {{
+        sasd_package_diagnostics_apt_query | combine({'supported': true})
+        if (
+          ansible_facts.pkg_mgr == 'apt'
+          and sasd_package_diagnostics_apt_query is defined
+          and not sasd_package_diagnostics_apt_query.skipped | default(false)
+        )
+        else (
+          sasd_package_diagnostics_dnf_query | combine({'supported': true})
+          if (
+            ansible_facts.pkg_mgr == 'dnf'
+            and sasd_package_diagnostics_dnf_query is defined
+            and not sasd_package_diagnostics_dnf_query.skipped | default(false)
+          )
+          else (
+            sasd_package_diagnostics_yum_query | combine({'supported': true})
+            if (
+              ansible_facts.pkg_mgr == 'yum'
+              and sasd_package_diagnostics_yum_query is defined
+              and not sasd_package_diagnostics_yum_query.skipped | default(false)
+            )
+            else (
+              sasd_package_diagnostics_zypper_query | combine({'supported': true})
+              if (
+                ansible_facts.pkg_mgr == 'zypper'
+                and sasd_package_diagnostics_zypper_query is defined
+                and not sasd_package_diagnostics_zypper_query.skipped | default(false)
+              )
+              else sasd_package_diagnostics_update_query
+            )
+          )
+        )
+      }}
+
+- name: Package diagnostics | Normalize package inventory
+  ansible.builtin.set_fact:
+    sasd_package_diagnostics_inventory: "{{ ansible_facts.packages | default({}) }}"
+    sasd_package_diagnostics_selected_results: []
+    sasd_package_diagnostics_known_lock_paths_present: >-
+      {{
+        sasd_package_diagnostics_lock_stats.results
+        | selectattr('stat.exists')
+        | map(attribute='item')
+        | list
+      }}
+
+- name: Package diagnostics | Record selected package state
+  ansible.builtin.set_fact:
+    sasd_package_diagnostics_selected_results: >-
+      {{
+        sasd_package_diagnostics_selected_results
+        + [
+            {
+              'name': item,
+              'installed': item in sasd_package_diagnostics_inventory,
+              'versions': (
+                sasd_package_diagnostics_inventory[item]
+                | map(attribute='version')
+                | list
+                if item in sasd_package_diagnostics_inventory else []
+              )
+            }
+          ]
+      }}
+  loop: "{{ sasd_package_diagnostics_selected_packages }}"
+  loop_control:
+    label: "{{ item }}"
+
+- name: Package diagnostics | Normalize pending update lines
+  ansible.builtin.set_fact:
+    sasd_package_diagnostics_pending_lines: >-
+      {{
+        (
+          sasd_package_diagnostics_update_query.stdout_lines | default([])
+          | select('match', '^Inst ')
+          | list
+        )[:sasd_package_diagnostics_maximum_update_items | int]
+        if ansible_facts.pkg_mgr == 'apt'
+        else (
+          sasd_package_diagnostics_update_query.stdout_lines | default([])
+          | reject('match', '^$')
+          | reject('match', '^Last metadata expiration check:')
+          | list
+        )[:sasd_package_diagnostics_maximum_update_items | int]
+      }}
+
+- name: Package diagnostics | Build issue list
+  ansible.builtin.set_fact:
+    sasd_package_diagnostics_issues: >-
+      {{
+        (
+          [
+            {
+              'severity': 'warning',
+              'component': 'packages',
+              'code': 'updates-available',
+              'message': (
+                sasd_package_diagnostics_pending_lines | length | string
+                ~ ' pending update line(s) were collected'
+              )
+            }
+          ]
+          if sasd_package_diagnostics_pending_lines | length > 0 else []
+        )
+        +
+        (
+          [
+            {
+              'severity': 'warning',
+              'component': 'packages',
+              'code': 'reboot-required',
+              'message': 'The operating system reports that a reboot is required'
+            }
+          ]
+          if sasd_package_diagnostics_reboot_required.stat.exists else []
+        )
+      }}
+
+- name: Package diagnostics | Build result contract
+  ansible.builtin.set_fact:
+    sasd_package_diagnostics_result:
+      schema: sasd.diagnostics.packages.v1
+      host: "{{ inventory_hostname }}"
+      collected_at_utc: "{{ ansible_facts.date_time.iso8601 }}"
+      status: >-
+        {{ 'warning' if sasd_package_diagnostics_issues | length > 0 else 'ok' }}
+      package_manager: "{{ ansible_facts.pkg_mgr }}"
+      package_facts_available: >-
+        {{ not (sasd_package_diagnostics_package_facts_call.failed | default(false)) }}
+      installed_package_name_count: "{{ sasd_package_diagnostics_inventory | length }}"
+      selected_packages: "{{ sasd_package_diagnostics_selected_results }}"
+      update_query_supported: >-
+        {{ sasd_package_diagnostics_update_query.supported | bool }}
+      update_query_return_code: >-
+        {{ sasd_package_diagnostics_update_query.rc | default(none) }}
+      pending_updates_truncated: >-
+        {{
+          sasd_package_diagnostics_update_query.stdout_lines | default([]) | length
+          > sasd_package_diagnostics_maximum_update_items | int
+        }}
+      pending_update_lines: "{{ sasd_package_diagnostics_pending_lines }}"
+      known_lock_paths_present: "{{ sasd_package_diagnostics_known_lock_paths_present }}"
+      reboot_required: "{{ sasd_package_diagnostics_reboot_required.stat.exists }}"
+      issues: "{{ sasd_package_diagnostics_issues }}"
+
+- name: Package diagnostics | Write local JSON report
+  ansible.builtin.include_tasks: ../../sasd_system_baseline/tasks/write-report.yml
+  vars:
+    sasd_report_enabled: "{{ sasd_package_diagnostics_report_enabled }}"
+    sasd_report_root: "{{ sasd_package_diagnostics_report_root }}"
+    sasd_report_payload: "{{ sasd_package_diagnostics_result }}"
+    sasd_report_filename: packages.json

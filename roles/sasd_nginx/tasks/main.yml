@@ -1,0 +1,143 @@
+---
+- name: Nginx | Validate safety and platform
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.system == 'Linux'
+      - ansible_facts.os_family in sasd_nginx_packages_by_family
+      - sasd_nginx_mode in ['audit', 'apply']
+      - sasd_nginx_service_state in ['started', 'stopped']
+      - >-
+        sasd_nginx_mode == 'audit' or
+        sasd_nginx_apply_confirmation == 'SASD_APPLY_WEB_SERVICES'
+    fail_msg: Nginx apply mode requires a supported Linux family and the exact Milestone 3 token.
+
+- name: Nginx | Derive platform settings
+  ansible.builtin.set_fact:
+    sasd_nginx_effective_packages: >-
+      {{ sasd_nginx_packages if sasd_nginx_packages | length > 0
+         else sasd_nginx_packages_by_family[ansible_facts.os_family] }}
+    sasd_nginx_vhost_available_dir: "{{ sasd_nginx_vhost_available_dir_by_family[ansible_facts.os_family] }}"
+    sasd_nginx_vhost_enabled_dir: "{{ sasd_nginx_vhost_enabled_dir_by_family[ansible_facts.os_family] }}"
+
+- name: Nginx | Install approved packages
+  ansible.builtin.package:
+    name: "{{ sasd_nginx_effective_packages }}"
+    state: present
+  when:
+    - sasd_nginx_mode == 'apply'
+    - sasd_nginx_manage | bool
+    - sasd_nginx_manage_packages | bool
+
+- name: Nginx | Locate binary
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop: "{{ sasd_nginx_binary_candidates }}"
+  register: sasd_nginx_binary_stats
+
+- name: Nginx | Select binary
+  ansible.builtin.set_fact:
+    sasd_nginx_binary: >-
+      {{ (sasd_nginx_binary_stats.results | selectattr('stat.exists') |
+          map(attribute='item') | first) | default('') }}
+
+- name: Nginx | Collect package facts
+  ansible.builtin.package_facts:
+    manager: auto
+  failed_when: false
+
+- name: Nginx | Collect service facts
+  ansible.builtin.service_facts:
+  failed_when: false
+
+- name: Nginx | Inspect configured virtual-host files
+  ansible.builtin.stat:
+    path: "{{ sasd_nginx_vhost_available_dir }}/{{ item.name }}.conf"
+  loop: "{{ sasd_nginx_virtual_hosts }}"
+  loop_control:
+    label: "{{ item.name | default('unnamed') }}"
+  register: sasd_nginx_vhost_stats
+  when: item.name is defined
+
+- name: Nginx | Audit complete configuration
+  ansible.builtin.command:
+    argv: ["{{ sasd_nginx_binary }}", -t]
+  register: sasd_nginx_configtest
+  changed_when: false
+  failed_when: false
+  when: sasd_nginx_binary | length > 0
+
+- name: Nginx | Audit expanded configuration
+  ansible.builtin.command:
+    argv: ["{{ sasd_nginx_binary }}", -T]
+  register: sasd_nginx_expanded_config
+  changed_when: false
+  failed_when: false
+  when: sasd_nginx_binary | length > 0
+
+- name: Nginx | Ensure virtual-host directories exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop: >-
+    {{ [sasd_nginx_vhost_available_dir | default('/etc/nginx/sites-available'),
+          sasd_nginx_vhost_enabled_dir | default('/etc/nginx/sites-enabled')] | unique }}
+  when:
+    - sasd_nginx_mode == 'apply'
+    - sasd_nginx_manage | bool
+
+- name: Nginx | Manage declared virtual hosts
+  ansible.builtin.include_tasks: manage-vhost.yml
+  loop: "{{ sasd_nginx_virtual_hosts }}"
+  loop_control:
+    loop_var: sasd_nginx_vhost
+    label: "{{ sasd_nginx_vhost.name | default('unnamed') }}"
+  when:
+    - sasd_nginx_mode == 'apply'
+    - sasd_nginx_manage | bool
+    - sasd_nginx_binary | length > 0
+
+- name: Nginx | Ensure requested service state
+  ansible.builtin.service:
+    name: "{{ sasd_nginx_service_name }}"
+    enabled: "{{ sasd_nginx_service_enabled }}"
+    state: "{{ sasd_nginx_service_state }}"
+  when:
+    - sasd_nginx_mode == 'apply'
+    - sasd_nginx_manage | bool
+    - sasd_nginx_manage_service | bool
+
+- name: Nginx | Build audit result
+  ansible.builtin.set_fact:
+    sasd_nginx_result:
+      schema: sasd.nginx.v1
+      host: "{{ inventory_hostname }}"
+      collected_at_utc: "{{ ansible_facts.date_time.iso8601 }}"
+      mode: "{{ sasd_nginx_mode }}"
+      manage_enabled: "{{ sasd_nginx_manage | bool }}"
+      package_names: "{{ sasd_nginx_effective_packages }}"
+      packages_installed: >-
+        {{ sasd_nginx_effective_packages | select('in', ansible_facts.packages | default({})) | list }}
+      service_name: "{{ sasd_nginx_service_name }}"
+      service_state: >-
+        {{ (ansible_facts.services | default({})).get(
+           sasd_nginx_service_name + '.service', {}
+         ).get('state', 'unknown') }}
+      binary: "{{ sasd_nginx_binary }}"
+      configuration_valid: >-
+        {{ (sasd_nginx_configtest.rc | default(127)) == 0 }}
+      virtual_hosts_declared: "{{ sasd_nginx_virtual_hosts | map(attribute='name') | list }}"
+      virtual_hosts_present: >-
+        {{ sasd_nginx_vhost_stats.results | default([]) |
+           selectattr('stat.exists', 'defined') | selectattr('stat.exists') |
+           map(attribute='item.name') | list }}
+
+- name: Nginx | Write local JSON report
+  ansible.builtin.include_tasks: ../../sasd_system_baseline/tasks/write-report.yml
+  vars:
+    sasd_report_enabled: "{{ sasd_nginx_report_enabled }}"
+    sasd_report_root: "{{ sasd_nginx_report_root }}"
+    sasd_report_payload: "{{ sasd_nginx_result }}"
+    sasd_report_filename: "{{ inventory_hostname }}.json"

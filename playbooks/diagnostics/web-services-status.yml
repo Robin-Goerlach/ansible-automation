@@ -1,0 +1,41 @@
+---
+- name: Collect read-only web-services status
+  hosts: webservers
+  become: false
+  gather_facts: true
+  vars:
+    sasd_apache_mode: audit
+    sasd_nginx_mode: audit
+    sasd_php_mode: audit
+    sasd_certificate_management_mode: audit
+  roles:
+    - role: sasd_certificate_management
+    - role: sasd_php
+    - role: sasd_apache
+    - role: sasd_nginx
+  post_tasks:
+    - name: Web services diagnostics | Build result
+      ansible.builtin.set_fact:
+        sasd_web_services_diagnostics_result:
+          schema: sasd.web-services-diagnostics.v1
+          host: "{{ inventory_hostname }}"
+          collected_at_utc: "{{ ansible_facts.date_time.iso8601 }}"
+          apache: "{{ sasd_apache_result }}"
+          nginx: "{{ sasd_nginx_result }}"
+          php: "{{ sasd_php_result }}"
+          certificates: "{{ sasd_certificate_management_result }}"
+
+    - name: Web services diagnostics | Create local report directory
+      ansible.builtin.file:
+        path: "{{ playbook_dir }}/../../reports/web-services-diagnostics"
+        state: directory
+        mode: "0750"
+      delegate_to: localhost
+
+    - name: Web services diagnostics | Write local report
+      ansible.builtin.copy:
+        content: "{{ sasd_web_services_diagnostics_result | to_nice_json }}\n"
+        dest: >-
+          {{ playbook_dir }}/../../reports/web-services-diagnostics/{{ inventory_hostname }}.json
+        mode: "0640"
+      delegate_to: localhost

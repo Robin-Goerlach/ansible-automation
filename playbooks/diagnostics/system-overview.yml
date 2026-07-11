@@ -1,0 +1,78 @@
+---
+- name: Collect a read-only Linux system overview
+  hosts: linux_managed
+  gather_facts: true
+  become: false
+
+  tasks:
+    - name: Freeze the diagnostics run identifier
+      ansible.builtin.set_fact:
+        sasd_diagnostics_run_id: "{{ ansible_facts.date_time.iso8601_basic_short }}"
+
+    - name: Read uptime and load averages
+      ansible.builtin.command:
+        cmd: uptime
+      register: sasd_uptime
+      changed_when: false
+
+    - name: Read filesystem usage
+      ansible.builtin.command:
+        cmd: df -hP
+      register: sasd_filesystems
+      changed_when: false
+
+    - name: Read inode usage
+      ansible.builtin.command:
+        cmd: df -iP
+      register: sasd_inodes
+      changed_when: false
+
+    - name: Read memory usage
+      ansible.builtin.command:
+        cmd: free -h
+      register: sasd_memory
+      changed_when: false
+
+    - name: Build the system overview data structure
+      ansible.builtin.set_fact:
+        sasd_system_overview:
+          schema: sasd.system-overview.v1
+          collected_at_utc: "{{ ansible_facts.date_time.iso8601 }}"
+          inventory_hostname: "{{ inventory_hostname }}"
+          fqdn: "{{ ansible_facts.fqdn | default(inventory_hostname) }}"
+          distribution: "{{ ansible_facts.distribution }}"
+          distribution_version: "{{ ansible_facts.distribution_version }}"
+          architecture: "{{ ansible_facts.architecture }}"
+          kernel: "{{ ansible_facts.kernel }}"
+          python: "{{ ansible_facts.python.version.major }}.{{ ansible_facts.python.version.minor }}"
+          package_manager: "{{ ansible_facts.pkg_mgr }}"
+          uptime: "{{ sasd_uptime.stdout }}"
+          filesystems: "{{ sasd_filesystems.stdout_lines }}"
+          inodes: "{{ sasd_inodes.stdout_lines }}"
+          memory: "{{ sasd_memory.stdout_lines }}"
+
+    - name: Display the system overview
+      ansible.builtin.debug:
+        var: sasd_system_overview
+
+    - name: Create the local report directory
+      ansible.builtin.file:
+        path: "{{ playbook_dir }}/../../{{ sasd_diagnostics_report_root }}/{{ sasd_diagnostics_run_id }}"
+        state: directory
+        mode: "0750"
+      delegate_to: localhost
+      become: false
+      when: sasd_diagnostics_write_local_reports | bool
+
+    - name: Write the local JSON report
+      ansible.builtin.copy:
+        content: "{{ sasd_system_overview | to_nice_json }}\n"
+        dest: >-
+          {{
+            playbook_dir ~ '/../../' ~ sasd_diagnostics_report_root ~ '/' ~
+            sasd_diagnostics_run_id ~ '/' ~ inventory_hostname ~ '.json'
+          }}
+        mode: "0640"
+      delegate_to: localhost
+      become: false
+      when: sasd_diagnostics_write_local_reports | bool

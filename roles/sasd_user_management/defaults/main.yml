@@ -1,0 +1,8 @@
+---
+sasd_user_management_mode: audit
+sasd_user_management_apply_confirmation: ""
+sasd_user_management_manage: true
+sasd_user_management_groups: []
+sasd_user_management_users: []
+sasd_user_management_report_enabled: true
+sasd_user_management_report_root: reports/linux-baseline/user-management

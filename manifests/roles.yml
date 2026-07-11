@@ -1,0 +1,141 @@
+---
+roles:
+  - name: sasd_system_baseline
+    status: milestone-1
+    maturity: lab-ready
+    default_mode: audit
+    safety:
+      writes_by_default: false
+  - name: sasd_package_management
+    status: milestone-2
+    maturity: lab-ready
+    default_mode: audit
+    safety:
+      global_apply_confirmation_required: true
+      arbitrary_repository_paths_rejected: true
+  - name: sasd_user_management
+    status: milestone-2
+    maturity: lab-ready
+    default_mode: audit
+    safety:
+      global_apply_confirmation_required: true
+      undeclared_users_are_never_removed: true
+  - name: sasd_sudo_configuration
+    status: milestone-2
+    maturity: lab-ready
+    default_mode: audit
+    safety:
+      global_apply_confirmation_required: true
+      visudo_validation_required: true
+  - name: sasd_ssh_server
+    status: milestone-2
+    maturity: lab-ready
+    default_mode: audit
+    safety:
+      global_apply_confirmation_required: true
+      separate_manage_opt_in: true
+      validation_and_rollback: true
+  - name: sasd_time_synchronization
+    status: milestone-2
+    maturity: lab-ready
+    default_mode: audit
+    safety:
+      global_apply_confirmation_required: true
+  - name: sasd_log_management
+    status: milestone-2
+    maturity: lab-ready
+    default_mode: audit
+    safety:
+      global_apply_confirmation_required: true
+  - name: sasd_firewall
+    status: milestone-2
+    maturity: lab-ready
+    default_mode: audit
+    safety:
+      global_apply_confirmation_required: true
+      separate_manage_opt_in: true
+      default_provider: none
+
+  - name: sasd_apache
+    status: milestone-3
+    maturity: lab-ready
+    default_mode: audit
+    safety:
+      global_apply_confirmation_required: true
+      separate_manage_opt_in: true
+      native_configtest_and_rollback: true
+  - name: sasd_nginx
+    status: milestone-3
+    maturity: lab-ready
+    default_mode: audit
+    safety:
+      global_apply_confirmation_required: true
+      separate_manage_opt_in: true
+      native_configtest_and_rollback: true
+  - name: sasd_php
+    status: milestone-3
+    maturity: lab-ready
+    default_mode: audit
+    safety:
+      global_apply_confirmation_required: true
+      separate_manage_opt_in: true
+      explicit_ini_paths_only: true
+  - name: sasd_certificate_management
+    status: milestone-3
+    maturity: lab-ready
+    default_mode: audit
+    safety:
+      global_apply_confirmation_required: true
+      separate_manage_opt_in: true
+      private_key_no_log: true
+      key_pair_validation_and_rollback: true
+
+  - name: sasd_resource_diagnostics
+    status: milestone-4
+    maturity: lab-ready
+    default_mode: read-only
+    safety:
+      writes_managed_node: false
+      command_lines_collected: false
+      bounded_process_list: true
+  - name: sasd_service_diagnostics
+    status: milestone-4
+    maturity: lab-ready
+    default_mode: read-only
+    safety:
+      writes_managed_node: false
+      stopped_services_are_not_implicitly_failed: true
+  - name: sasd_package_diagnostics
+    status: milestone-4
+    maturity: lab-ready
+    default_mode: read-only
+    safety:
+      writes_managed_node: false
+      update_query_is_simulation: true
+      metadata_refresh: false
+  - name: sasd_network_diagnostics
+    status: milestone-4
+    maturity: lab-ready
+    default_mode: read-only
+    safety:
+      writes_managed_node: false
+      external_checks_require_declaration: true
+      application_payload_sent: false
+  - name: sasd_certificate_diagnostics
+    status: milestone-4
+    maturity: lab-ready
+    default_mode: read-only
+    safety:
+      writes_managed_node: false
+      private_keys_read: false
+      external_checks_require_declaration: true
+  - name: sasd_diagnostic_bundle
+    status: milestone-4
+    maturity: lab-ready
+    default_mode: controller-artifact
+    safety:
+      writes_managed_node: false
+      symlinks_rejected: true
+      file_size_limit: true
+      sensitive_json_keys_redacted: true
+      external_review_required: true

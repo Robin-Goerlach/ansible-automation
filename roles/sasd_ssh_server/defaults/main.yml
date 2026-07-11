@@ -1,0 +1,16 @@
+---
+sasd_ssh_server_mode: audit
+sasd_ssh_server_apply_confirmation: ""
+sasd_ssh_server_manage: false
+sasd_ssh_server_port: 22
+sasd_ssh_server_password_authentication: false
+sasd_ssh_server_permit_root_login: prohibit-password
+sasd_ssh_server_pubkey_authentication: true
+sasd_ssh_server_x11_forwarding: false
+sasd_ssh_server_allow_tcp_forwarding: true
+sasd_ssh_server_client_alive_interval: 300
+sasd_ssh_server_client_alive_count_max: 2
+sasd_ssh_server_max_auth_tries: 4
+sasd_ssh_server_allow_groups: []
+sasd_ssh_server_report_enabled: true
+sasd_ssh_server_report_root: reports/linux-baseline/ssh-server

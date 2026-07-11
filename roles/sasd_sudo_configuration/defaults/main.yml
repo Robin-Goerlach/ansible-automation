@@ -1,0 +1,7 @@
+---
+sasd_sudo_configuration_mode: audit
+sasd_sudo_configuration_apply_confirmation: ""
+sasd_sudo_configuration_manage: true
+sasd_sudo_configuration_entries: []
+sasd_sudo_configuration_report_enabled: true
+sasd_sudo_configuration_report_root: reports/linux-baseline/sudo-configuration

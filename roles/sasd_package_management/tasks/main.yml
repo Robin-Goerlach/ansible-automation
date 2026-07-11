@@ -1,0 +1,123 @@
+---
+- name: Package management | Validate safety and input variables
+  ansible.builtin.assert:
+    that:
+      - sasd_package_management_mode in ['audit', 'apply']
+      - ansible_facts.system == 'Linux'
+      - sasd_package_management_packages is iterable
+      - sasd_package_management_repository_files is iterable
+      - >-
+        sasd_package_management_mode == 'audit' or
+        sasd_package_management_apply_confirmation == 'SASD_APPLY_LINUX_BASELINE'
+    fail_msg: Package management apply mode requires the exact Milestone 2 confirmation token.
+
+- name: Package management | Validate requested repository paths
+  ansible.builtin.assert:
+    that:
+      - item.path is defined
+      - item.path is match(sasd_package_management_allowed_repository_path_pattern)
+      - item.state | default('present') in ['present', 'absent']
+      - item.state | default('present') == 'absent' or item.content is defined
+    fail_msg: "Unsafe or incomplete repository-file declaration: {{ item | to_nice_json }}"
+  loop: "{{ sasd_package_management_repository_files }}"
+  loop_control:
+    label: "{{ item.path | default('missing-path') }}"
+
+- name: Package management | Collect installed package facts
+  ansible.builtin.package_facts:
+    manager: auto
+  register: sasd_package_management_package_facts
+  failed_when: false
+
+- name: Package management | Inspect declared repository files
+  ansible.builtin.stat:
+    path: "{{ item.path }}"
+  loop: "{{ sasd_package_management_repository_files }}"
+  loop_control:
+    label: "{{ item.path }}"
+  register: sasd_package_management_repository_stats
+
+- name: Package management | Apply approved repository files
+  when:
+    - sasd_package_management_mode == 'apply'
+    - sasd_package_management_manage | bool
+  block:
+    - name: Package management | Write approved repository files
+      ansible.builtin.copy:
+        content: "{{ item.content }}"
+        dest: "{{ item.path }}"
+        owner: root
+        group: root
+        mode: "{{ item.mode | default('0644') }}"
+        backup: true
+      loop: "{{ sasd_package_management_repository_files }}"
+      loop_control:
+        label: "{{ item.path }}"
+      when: item.state | default('present') == 'present'
+
+    - name: Package management | Remove explicitly retired repository files
+      ansible.builtin.file:
+        path: "{{ item.path }}"
+        state: absent
+      loop: "{{ sasd_package_management_repository_files }}"
+      loop_control:
+        label: "{{ item.path }}"
+      when: item.state | default('present') == 'absent'
+
+    - name: Package management | Refresh APT metadata when requested
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: "{{ sasd_package_management_cache_valid_time }}"
+      when:
+        - sasd_package_management_update_cache | bool
+        - ansible_facts.pkg_mgr == 'apt'
+
+    - name: Package management | Refresh DNF metadata when requested
+      ansible.builtin.dnf:
+        update_cache: true
+      when:
+        - sasd_package_management_update_cache | bool
+        - ansible_facts.pkg_mgr in ['dnf', 'dnf5']
+
+    - name: Package management | Refresh Zypper metadata when requested
+      ansible.builtin.command:
+        argv: [zypper, --non-interactive, refresh]
+      register: sasd_package_management_zypper_refresh
+      changed_when: "'All repositories have been refreshed' in sasd_package_management_zypper_refresh.stdout"
+      when:
+        - sasd_package_management_update_cache | bool
+        - ansible_facts.pkg_mgr == 'zypper'
+
+    - name: Package management | Install approved baseline packages
+      ansible.builtin.package:
+        name: "{{ sasd_package_management_packages }}"
+        state: present
+      when: sasd_package_management_packages | length > 0
+
+- name: Package management | Build audit result
+  ansible.builtin.set_fact:
+    sasd_package_management_result:
+      schema: sasd.package-management.v1
+      host: "{{ inventory_hostname }}"
+      collected_at_utc: "{{ ansible_facts.date_time.iso8601 }}"
+      mode: "{{ sasd_package_management_mode }}"
+      manage_enabled: "{{ sasd_package_management_manage | bool }}"
+      package_manager: "{{ ansible_facts.pkg_mgr }}"
+      requested_packages: "{{ sasd_package_management_packages }}"
+      installed_packages: >-
+        {{ sasd_package_management_packages | select('in', ansible_facts.packages | default({})) | list }}
+      missing_packages: >-
+        {{ sasd_package_management_packages | reject('in', ansible_facts.packages | default({})) | list }}
+      repository_files_requested: "{{ sasd_package_management_repository_files | map(attribute='path') | list }}"
+      repository_files_present: >-
+        {{ sasd_package_management_repository_stats.results | default([]) |
+           selectattr('stat.exists', 'defined') | selectattr('stat.exists') |
+           map(attribute='item.path') | list }}
+
+- name: Package management | Write local JSON report
+  ansible.builtin.include_tasks: ../../sasd_system_baseline/tasks/write-report.yml
+  vars:
+    sasd_report_enabled: "{{ sasd_package_management_report_enabled }}"
+    sasd_report_root: "{{ sasd_package_management_report_root }}"
+    sasd_report_payload: "{{ sasd_package_management_result }}"
+    sasd_report_filename: "{{ inventory_hostname }}.json"

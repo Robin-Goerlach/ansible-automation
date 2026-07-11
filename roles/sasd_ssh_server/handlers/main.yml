@@ -1,0 +1,8 @@
+---
+- name: SSH server | Reload OpenSSH
+  ansible.builtin.service:
+    name: "{{ sasd_ssh_server_service_by_family[ansible_facts.os_family] }}"
+    state: reloaded
+  when:
+    - not ansible_check_mode
+    - ansible_facts.os_family in sasd_ssh_server_service_by_family

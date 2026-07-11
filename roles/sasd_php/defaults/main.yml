@@ -1,0 +1,20 @@
+---
+sasd_php_mode: audit
+sasd_php_apply_confirmation: ""
+sasd_php_manage: false
+sasd_php_manage_packages: true
+sasd_php_packages: []
+sasd_php_extension_packages: []
+sasd_php_ini_files: []
+sasd_php_manage_fpm_service: false
+sasd_php_fpm_service_name: ""
+sasd_php_cli_binary_candidates:
+  - /usr/bin/php
+  - /usr/local/bin/php
+sasd_php_fpm_binary_candidates:
+  - /usr/sbin/php-fpm
+  - /usr/sbin/php-fpm8
+  - /usr/sbin/php8-fpm
+  - /usr/sbin/php-fpm7
+sasd_php_report_enabled: true
+sasd_php_report_root: reports/web-services/php

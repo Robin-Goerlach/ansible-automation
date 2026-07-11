@@ -1,0 +1,33 @@
+---
+argument_specs:
+  main:
+    short_description: Audit or apply PHP runtime configuration.
+    options:
+      sasd_php_mode:
+        type: str
+        choices: [audit, apply]
+        default: audit
+      sasd_php_apply_confirmation:
+        type: str
+        default: ""
+      sasd_php_manage:
+        type: bool
+        default: false
+      sasd_php_manage_packages:
+        type: bool
+        default: true
+      sasd_php_packages:
+        type: list
+        elements: str
+      sasd_php_extension_packages:
+        type: list
+        elements: str
+      sasd_php_ini_files:
+        type: list
+        elements: dict
+      sasd_php_manage_fpm_service:
+        type: bool
+        default: false
+      sasd_php_fpm_service_name:
+        type: str
+        default: ""

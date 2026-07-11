@@ -1,0 +1,4 @@
+# Managed by SASD Ansible Automation.
+{% for server in sasd_time_synchronization_servers %}
+server {{ server }} iburst
+{% endfor %}

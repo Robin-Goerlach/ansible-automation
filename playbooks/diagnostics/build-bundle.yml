@@ -1,0 +1,12 @@
+---
+# Purpose: build a sanitized and checksummed archive for an existing diagnostics run.
+# Safety: runs only on the control node and never modifies a managed node.
+- name: Build a standardized diagnostic bundle
+  hosts: localhost
+  gather_facts: false
+  become: false
+
+  roles:
+    - role: sasd_diagnostic_bundle
+      vars:
+        sasd_diagnostic_bundle_run_id: "{{ sasd_diagnostics_run_id }}"

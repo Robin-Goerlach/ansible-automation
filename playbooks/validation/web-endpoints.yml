@@ -1,0 +1,102 @@
+---
+- name: Validate declared HTTP and HTTPS endpoints
+  hosts: webservers
+  become: false
+  gather_facts: false
+  vars:
+    sasd_web_validation_endpoints: []
+    sasd_web_validation_report_root: reports/web-services/endpoints
+  tasks:
+    - name: Web endpoint validation | Validate declarations
+      ansible.builtin.assert:
+        that:
+          - item.name is defined
+          - item.url is defined
+          - item.url is match('^https?://')
+          - item.status_codes | default([200]) is iterable
+        fail_msg: "Invalid endpoint declaration: {{ item.name | default('unnamed') }}"
+      loop: "{{ sasd_web_validation_endpoints }}"
+      loop_control:
+        label: "{{ item.name | default('unnamed') }}"
+      no_log: >-
+        {{ (item.headers | default({}) | length > 0) or
+           (item.no_log | default(false)) }}
+
+    - name: Web endpoint validation | Request endpoints
+      ansible.builtin.uri:
+        url: "{{ item.url }}"
+        method: GET
+        headers: "{{ item.headers | default({}) }}"
+        status_code: "{{ item.status_codes | default([200]) }}"
+        return_content: "{{ item.return_content | default(false) }}"
+        validate_certs: "{{ item.validate_certs | default(true) }}"
+        timeout: "{{ item.timeout | default(10) }}"
+      loop: "{{ sasd_web_validation_endpoints }}"
+      loop_control:
+        label: "{{ item.name }}"
+      register: sasd_web_validation_requests
+      changed_when: false
+      failed_when: false
+      no_log: >-
+        {{ (item.headers | default({}) | length > 0) or
+           (item.no_log | default(false)) }}
+
+    - name: Web endpoint validation | Initialize sanitized results
+      ansible.builtin.set_fact:
+        sasd_web_validation_sanitized_results: []
+
+    - name: Web endpoint validation | Append sanitized result
+      ansible.builtin.set_fact:
+        sasd_web_validation_sanitized_results: >-
+          {{ sasd_web_validation_sanitized_results + [{
+            'name': item.item.name,
+            'url': item.item.url,
+            'expected_status_codes': item.item.status_codes | default([200]),
+            'status': item.status | default(0),
+            'elapsed': item.elapsed | default(0),
+            'redirected': item.redirected | default(false),
+            'failed': item.failed | default(false),
+            'message': item.msg | default('')
+          }] }}
+      loop: "{{ sasd_web_validation_requests.results | default([]) }}"
+      loop_control:
+        label: "{{ item.item.name | default('unnamed') }}"
+      no_log: >-
+        {{ (item.item.headers | default({}) | length > 0) or
+           (item.item.no_log | default(false)) }}
+
+    - name: Web endpoint validation | Build result
+      ansible.builtin.set_fact:
+        sasd_web_validation_result:
+          schema: sasd.web-endpoint-validation.v1
+          host: "{{ inventory_hostname }}"
+          checked: "{{ sasd_web_validation_endpoints | length }}"
+          results: "{{ sasd_web_validation_sanitized_results }}"
+
+    - name: Web endpoint validation | Create local report directory
+      ansible.builtin.file:
+        path: "{{ playbook_dir }}/../../{{ sasd_web_validation_report_root }}"
+        state: directory
+        mode: "0750"
+      delegate_to: localhost
+
+    - name: Web endpoint validation | Write local report
+      ansible.builtin.copy:
+        content: "{{ sasd_web_validation_result | to_nice_json }}\n"
+        dest: >-
+          {{ playbook_dir }}/../../{{ sasd_web_validation_report_root }}/{{ inventory_hostname }}.json
+        mode: "0640"
+      delegate_to: localhost
+
+    - name: Web endpoint validation | Fail on unsuccessful declarations
+      ansible.builtin.assert:
+        that:
+          - (item.status | default(0)) in (item.item.status_codes | default([200]))
+        fail_msg: >-
+          Endpoint {{ item.item.name }} returned {{ item.status | default('no status') }}.
+      loop: "{{ sasd_web_validation_requests.results | default([]) }}"
+      loop_control:
+        label: "{{ item.item.name | default('unnamed') }}"
+      no_log: >-
+        {{ (item.item.headers | default({}) | length > 0) or
+           (item.item.no_log | default(false)) }}

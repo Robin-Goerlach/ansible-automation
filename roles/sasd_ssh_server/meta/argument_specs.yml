@@ -1,0 +1,24 @@
+---
+argument_specs:
+  main:
+    short_description: Audit or safely apply OpenSSH server settings.
+    options:
+      sasd_ssh_server_mode:
+        type: str
+        choices: [audit, apply]
+        default: audit
+      sasd_ssh_server_apply_confirmation:
+        type: str
+        default: ""
+      sasd_ssh_server_manage:
+        type: bool
+        default: false
+      sasd_ssh_server_port:
+        type: int
+        default: 22
+      sasd_ssh_server_password_authentication:
+        type: bool
+        default: false
+      sasd_ssh_server_permit_root_login:
+        type: str
+        default: prohibit-password

@@ -1,0 +1,5 @@
+---
+sasd_service_diagnostics_monitored_services: []
+sasd_service_diagnostics_fail_on_missing_monitored: false
+sasd_service_diagnostics_report_enabled: true
+sasd_service_diagnostics_report_root: reports/diagnostics/services

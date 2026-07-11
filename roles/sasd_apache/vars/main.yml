@@ -1,0 +1,23 @@
+---
+sasd_apache_packages_by_family:
+  Debian: [apache2]
+  RedHat: [httpd]
+  Suse: [apache2]
+sasd_apache_log_dir_by_family:
+  Debian: /var/log/apache2
+  RedHat: /var/log/httpd
+  Suse: /var/log/apache2
+sasd_apache_service_by_family:
+  Debian: apache2
+  RedHat: httpd
+  Suse: apache2
+sasd_apache_vhost_available_dir_by_family:
+  Debian: /etc/apache2/sites-available
+  RedHat: /etc/httpd/conf.d
+  Suse: /etc/apache2/vhosts.d
+sasd_apache_vhost_enabled_dir_by_family:
+  Debian: /etc/apache2/sites-enabled
+  RedHat: /etc/httpd/conf.d
+  Suse: /etc/apache2/vhosts.d
+sasd_apache_allowed_vhost_name_pattern: '^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$'
+sasd_apache_allowed_document_root_pattern: '^/var/www(/[A-Za-z0-9_.-]+)*$'

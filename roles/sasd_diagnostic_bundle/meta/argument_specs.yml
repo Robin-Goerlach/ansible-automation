@@ -1,0 +1,26 @@
+---
+argument_specs:
+  main:
+    short_description: Build a sanitized diagnostic archive on the control node.
+    options:
+      sasd_diagnostic_bundle_run_id:
+        type: str
+        required: true
+      sasd_diagnostic_bundle_source_root:
+        type: str
+        default: reports/diagnostics
+      sasd_diagnostic_bundle_output_root:
+        type: str
+        default: diagnostic-bundles
+      sasd_diagnostic_bundle_maximum_file_bytes:
+        type: int
+        default: 5242880
+      sasd_diagnostic_bundle_redacted_key_patterns:
+        type: list
+        elements: str
+      sasd_diagnostic_bundle_report_enabled:
+        type: bool
+        default: true
+      sasd_diagnostic_bundle_report_root:
+        type: str
+        default: reports/diagnostics/bundles

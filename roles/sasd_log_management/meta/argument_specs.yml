@@ -1,0 +1,22 @@
+---
+argument_specs:
+  main:
+    short_description: Audit or apply journald and logrotate settings.
+    options:
+      sasd_log_management_mode:
+        type: str
+        choices: [audit, apply]
+        default: audit
+      sasd_log_management_apply_confirmation:
+        type: str
+        default: ""
+      sasd_log_management_manage:
+        type: bool
+        default: true
+      sasd_log_management_journal_storage:
+        type: str
+        choices: [auto, volatile, persistent, none]
+        default: persistent
+      sasd_log_management_logrotate_entries:
+        type: list
+        elements: dict

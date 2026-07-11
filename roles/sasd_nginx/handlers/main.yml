@@ -1,0 +1,8 @@
+---
+- name: Nginx | Reload service
+  ansible.builtin.service:
+    name: "{{ sasd_nginx_service_name }}"
+    state: reloaded
+  when:
+    - not ansible_check_mode
+    - sasd_nginx_manage_service | bool

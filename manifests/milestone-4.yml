@@ -1,0 +1,31 @@
+---
+id: milestone-4
+name: Diagnostics
+version: 0.4.0
+status: complete
+completed_on: 2026-07-09
+risk_model:
+  managed_node_changes: false
+  controller_reports: true
+  controller_bundle_artifacts: true
+  external_checks_require_explicit_declaration: true
+  bundle_review_before_sharing: required
+capabilities:
+  - cpu_load_and_process_diagnostics
+  - memory_and_swap_diagnostics
+  - filesystem_capacity_and_inode_diagnostics
+  - service_inventory_and_failed_units
+  - package_inventory_pending_updates_locks_and_reboot_state
+  - interfaces_routes_resolver_and_listening_sockets
+  - explicit_dns_and_tcp_connectivity_checks
+  - certificate_file_and_tls_endpoint_diagnostics
+  - correlated_host_summary
+  - sanitized_checksummed_diagnostic_bundles
+acceptance:
+  static_suite: scripts/test.sh
+  runtime_suite: scripts/verify-milestone-4.sh
+  documentation:
+    - docs/milestones/milestone-4.md
+    - docs/testing/milestone-4-verification.md
+    - docs/security/diagnostic-data-handling.md
+    - docs/de/milestone-4.md

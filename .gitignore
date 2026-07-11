@@ -1,0 +1,38 @@
+# Python and tooling
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.cache/
+.ansible/
+.molecule/
+
+# Ansible generated files
+*.retry
+collections/ansible_collections/
+
+# Reports and artifacts may contain sensitive infrastructure data
+reports/
+diagnostic-bundles/
+artifacts/
+
+# Real environment inventories are local/private
+inventories/lab-local/
+inventories/production-local/
+
+# Secret files and credentials
+*.vault-password
+.vault-pass
+*.pem
+!tests/fixtures/diagnostics/test-certificate.pem
+*.key
+id_rsa
+id_ed25519
+
+# Editors and operating systems
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
+Thumbs.db

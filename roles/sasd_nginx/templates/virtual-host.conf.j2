@@ -1,0 +1,32 @@
+# Managed by SASD Ansible Automation. Local edits will be overwritten.
+server {
+    listen {{ sasd_nginx_vhost.address | default('0.0.0.0') }}:{{ sasd_nginx_vhost.port | default(80) }}{% if sasd_nginx_vhost.default_server | default(false) %} default_server{% endif %};
+{% if sasd_nginx_vhost.ipv6 | default(false) %}
+    listen [::]:{{ sasd_nginx_vhost.port | default(80) }}{% if sasd_nginx_vhost.default_server | default(false) %} default_server{% endif %};
+{% endif %}
+    server_name {{ ([sasd_nginx_vhost.server_name] + (sasd_nginx_vhost.server_aliases | default([]))) | join(' ') }};
+    root {{ sasd_nginx_vhost.document_root }};
+    index {{ sasd_nginx_vhost.index | default(['index.html', 'index.htm']) | join(' ') }};
+
+    access_log {{ sasd_nginx_vhost.access_log | default('/var/log/nginx/' ~ sasd_nginx_vhost.name ~ '-access.log') }};
+    error_log {{ sasd_nginx_vhost.error_log | default('/var/log/nginx/' ~ sasd_nginx_vhost.name ~ '-error.log') }};
+
+{% if sasd_nginx_vhost.tls | default(false) %}
+    ssl_certificate {{ sasd_nginx_vhost.certificate_path }};
+    ssl_certificate_key {{ sasd_nginx_vhost.private_key_path }};
+    ssl_protocols TLSv1.2 TLSv1.3;
+{% endif %}
+{% if sasd_nginx_vhost.php_fpm_socket | default('') | length > 0 %}
+    location ~ \.php$ {
+        include fastcgi_params;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        fastcgi_pass unix:{{ sasd_nginx_vhost.php_fpm_socket }};
+    }
+{% endif %}
+    location / {
+        try_files $uri $uri/ {{ sasd_nginx_vhost.fallback | default('=404') }};
+    }
+{% for directive in sasd_nginx_vhost.extra_directives | default([]) %}
+    {{ directive }}
+{% endfor %}
+}

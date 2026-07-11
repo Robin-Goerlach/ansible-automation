@@ -1,0 +1,22 @@
+---
+# Contract validation for every Milestone 4 diagnostics role.
+- name: Import the incident snapshot playbook
+  ansible.builtin.import_playbook: ../diagnostics/incident-snapshot.yml
+
+- name: Validate diagnostics result schemas
+  hosts: linux_managed
+  gather_facts: false
+  become: false
+
+  tasks:
+    - name: Diagnostics validation | Assert result contracts
+      ansible.builtin.assert:
+        that:
+          - sasd_resource_diagnostics_result.schema == 'sasd.diagnostics.resources.v1'
+          - sasd_service_diagnostics_result.schema == 'sasd.diagnostics.services.v1'
+          - sasd_package_diagnostics_result.schema == 'sasd.diagnostics.packages.v1'
+          - sasd_network_diagnostics_result.schema == 'sasd.diagnostics.network.v1'
+          - sasd_certificate_diagnostics_result.schema == 'sasd.diagnostics.certificates.v1'
+          - sasd_diagnostics_summary_result.schema == 'sasd.diagnostics.summary.v1'
+          - sasd_diagnostics_summary_result.issue_count | int >= 0
+        fail_msg: One or more Milestone 4 result contracts are invalid.

@@ -1,0 +1,28 @@
+---
+- name: Validate managed Linux node readiness
+  hosts: linux_managed
+  gather_facts: true
+  become: false
+
+  tasks:
+    - name: Validate managed-node platform and Python
+      ansible.builtin.assert:
+        that:
+          - ansible_facts.system == 'Linux'
+          - ansible_facts.python.version.major | int >= sasd_managed_node_minimum_python_major | int
+          - ansible_facts.pkg_mgr | length > 0
+        fail_msg: >-
+          {{ inventory_hostname }} is not ready. Linux, Python
+          {{ sasd_managed_node_minimum_python_major }}+, and a detected package
+          manager are required.
+        success_msg: >-
+          {{ inventory_hostname }} is ready: {{ ansible_facts.distribution }}
+          {{ ansible_facts.distribution_version }}, Python
+          {{ ansible_facts.python.version.major }}.{{ ansible_facts.python.version.minor }},
+          package manager {{ ansible_facts.pkg_mgr }}.
+
+    - name: Display privilege escalation guidance
+      ansible.builtin.debug:
+        msg: >-
+          This validation does not use privilege escalation. Playbooks that
+          change system state normally require become access.

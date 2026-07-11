@@ -1,0 +1,6 @@
+---
+- name: Validate managed-node readiness
+  ansible.builtin.import_playbook: validation/managed-node-readiness.yml
+
+- name: Audit or apply the Milestone 2 Linux baseline
+  ansible.builtin.import_playbook: provisioning/linux-baseline.yml

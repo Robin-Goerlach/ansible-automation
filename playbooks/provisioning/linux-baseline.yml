@@ -1,0 +1,82 @@
+---
+- name: Audit or apply the SASD Milestone 2 Linux baseline
+  hosts: linux_managed
+  become: "{{ (sasd_linux_baseline_mode | default('audit')) == 'apply' }}"
+  gather_facts: true
+
+  pre_tasks:
+    - name: Linux baseline | Validate global safety gate
+      ansible.builtin.assert:
+        that:
+          - (sasd_linux_baseline_mode | default('audit')) in ['audit', 'apply']
+          - >-
+            (sasd_linux_baseline_mode | default('audit')) == 'audit' or
+            (sasd_linux_baseline_apply_confirmation | default('')) == 'SASD_APPLY_LINUX_BASELINE'
+        fail_msg: Apply mode requires the exact token SASD_APPLY_LINUX_BASELINE.
+
+  roles:
+    - role: sasd_package_management
+      vars:
+        sasd_package_management_mode: "{{ sasd_linux_baseline_mode | default('audit') }}"
+        sasd_package_management_apply_confirmation: "{{ sasd_linux_baseline_apply_confirmation | default('') }}"
+    - role: sasd_user_management
+      vars:
+        sasd_user_management_mode: "{{ sasd_linux_baseline_mode | default('audit') }}"
+        sasd_user_management_apply_confirmation: "{{ sasd_linux_baseline_apply_confirmation | default('') }}"
+    - role: sasd_sudo_configuration
+      vars:
+        sasd_sudo_configuration_mode: "{{ sasd_linux_baseline_mode | default('audit') }}"
+        sasd_sudo_configuration_apply_confirmation: "{{ sasd_linux_baseline_apply_confirmation | default('') }}"
+    - role: sasd_ssh_server
+      vars:
+        sasd_ssh_server_mode: "{{ sasd_linux_baseline_mode | default('audit') }}"
+        sasd_ssh_server_apply_confirmation: "{{ sasd_linux_baseline_apply_confirmation | default('') }}"
+    - role: sasd_time_synchronization
+      vars:
+        sasd_time_synchronization_mode: "{{ sasd_linux_baseline_mode | default('audit') }}"
+        sasd_time_synchronization_apply_confirmation: "{{ sasd_linux_baseline_apply_confirmation | default('') }}"
+    - role: sasd_log_management
+      vars:
+        sasd_log_management_mode: "{{ sasd_linux_baseline_mode | default('audit') }}"
+        sasd_log_management_apply_confirmation: "{{ sasd_linux_baseline_apply_confirmation | default('') }}"
+    - role: sasd_firewall
+      vars:
+        sasd_firewall_mode: "{{ sasd_linux_baseline_mode | default('audit') }}"
+        sasd_firewall_apply_confirmation: "{{ sasd_linux_baseline_apply_confirmation | default('') }}"
+
+  post_tasks:
+    - name: Linux baseline | Build consolidated result
+      ansible.builtin.set_fact:
+        sasd_linux_baseline_result:
+          schema: sasd.linux-baseline.v2
+          host: "{{ inventory_hostname }}"
+          collected_at_utc: "{{ ansible_facts.date_time.iso8601 }}"
+          mode: "{{ sasd_linux_baseline_mode | default('audit') }}"
+          environment: "{{ sasd_environment | default('unspecified') }}"
+          package_management: "{{ sasd_package_management_result }}"
+          user_management: "{{ sasd_user_management_result }}"
+          sudo_configuration: "{{ sasd_sudo_configuration_result }}"
+          ssh_server: "{{ sasd_ssh_server_result }}"
+          time_synchronization: "{{ sasd_time_synchronization_result }}"
+          log_management: "{{ sasd_log_management_result }}"
+          firewall: "{{ sasd_firewall_result }}"
+
+    - name: Linux baseline | Create consolidated local report directory
+      ansible.builtin.file:
+        path: "{{ playbook_dir }}/../../{{ sasd_linux_baseline_report_root | default('reports/linux-baseline') }}"
+        state: directory
+        mode: "0750"
+      delegate_to: localhost
+      become: false
+      when: sasd_linux_baseline_report_enabled | default(true) | bool
+
+    - name: Linux baseline | Write consolidated local JSON report
+      ansible.builtin.copy:
+        content: "{{ sasd_linux_baseline_result | to_nice_json }}\n"
+        dest: >-
+          {{ playbook_dir }}/../../{{ sasd_linux_baseline_report_root |
+          default('reports/linux-baseline') }}/{{ inventory_hostname }}.json
+        mode: "0640"
+      delegate_to: localhost
+      become: false
+      when: sasd_linux_baseline_report_enabled | default(true) | bool

@@ -1,0 +1,85 @@
+---
+- name: Certificate management | Validate safety
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.system == 'Linux'
+      - sasd_certificate_management_mode in ['audit', 'apply']
+      - sasd_certificate_management_minimum_remaining_days | int >= 0
+      - >-
+        sasd_certificate_management_mode == 'audit' or
+        sasd_certificate_management_apply_confirmation == 'SASD_APPLY_WEB_SERVICES'
+    fail_msg: Certificate apply mode requires Linux and the exact Milestone 3 token.
+
+- name: Certificate management | Locate OpenSSL
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop: "{{ sasd_certificate_management_openssl_candidates }}"
+  register: sasd_certificate_management_openssl_stats
+
+- name: Certificate management | Select OpenSSL binary
+  ansible.builtin.set_fact:
+    sasd_certificate_management_openssl_binary: >-
+      {{ (sasd_certificate_management_openssl_stats.results | selectattr('stat.exists') |
+          map(attribute='item') | first) | default('') }}
+    sasd_certificate_management_results: []
+
+- name: Certificate management | Require OpenSSL when certificates are declared
+  ansible.builtin.assert:
+    that:
+      - sasd_certificate_management_openssl_binary | length > 0
+    fail_msg: OpenSSL is required to inspect or manage declared certificates.
+  when: sasd_certificate_management_certificates | length > 0
+
+- name: Certificate management | Validate certificate declarations
+  ansible.builtin.include_tasks: audit-certificate.yml
+  loop: "{{ sasd_certificate_management_certificates }}"
+  loop_control:
+    loop_var: sasd_certificate
+    label: "{{ sasd_certificate.name | default('unnamed') }}"
+
+- name: Certificate management | Apply declared certificate material
+  ansible.builtin.include_tasks: manage-certificate.yml
+  loop: "{{ sasd_certificate_management_certificates }}"
+  loop_control:
+    loop_var: sasd_certificate
+    label: "{{ sasd_certificate.name | default('unnamed') }}"
+  when:
+    - sasd_certificate_management_mode == 'apply'
+    - sasd_certificate_management_manage | bool
+
+- name: Certificate management | Re-audit certificates after apply
+  when:
+    - sasd_certificate_management_mode == 'apply'
+    - sasd_certificate_management_manage | bool
+    - not ansible_check_mode
+  block:
+    - name: Certificate management | Reset post-apply results
+      ansible.builtin.set_fact:
+        sasd_certificate_management_results: []
+
+    - name: Certificate management | Inspect post-apply certificate state
+      ansible.builtin.include_tasks: audit-certificate.yml
+      loop: "{{ sasd_certificate_management_certificates }}"
+      loop_control:
+        loop_var: sasd_certificate
+        label: "{{ sasd_certificate.name | default('unnamed') }}"
+
+- name: Certificate management | Build audit result
+  ansible.builtin.set_fact:
+    sasd_certificate_management_result:
+      schema: sasd.certificate-management.v1
+      host: "{{ inventory_hostname }}"
+      collected_at_utc: "{{ ansible_facts.date_time.iso8601 }}"
+      mode: "{{ sasd_certificate_management_mode }}"
+      manage_enabled: "{{ sasd_certificate_management_manage | bool }}"
+      openssl_binary: "{{ sasd_certificate_management_openssl_binary }}"
+      minimum_remaining_days: "{{ sasd_certificate_management_minimum_remaining_days | int }}"
+      certificates: "{{ sasd_certificate_management_results }}"
+
+- name: Certificate management | Write local JSON report
+  ansible.builtin.include_tasks: ../../sasd_system_baseline/tasks/write-report.yml
+  vars:
+    sasd_report_enabled: "{{ sasd_certificate_management_report_enabled }}"
+    sasd_report_root: "{{ sasd_certificate_management_report_root }}"
+    sasd_report_payload: "{{ sasd_certificate_management_result }}"
+    sasd_report_filename: "{{ inventory_hostname }}.json"

@@ -1,0 +1,21 @@
+---
+argument_specs:
+  main:
+    short_description: Audit or apply local groups, users, and authorized keys.
+    options:
+      sasd_user_management_mode:
+        type: str
+        choices: [audit, apply]
+        default: audit
+      sasd_user_management_apply_confirmation:
+        type: str
+        default: ""
+      sasd_user_management_manage:
+        type: bool
+        default: true
+      sasd_user_management_groups:
+        type: list
+        elements: dict
+      sasd_user_management_users:
+        type: list
+        elements: dict

@@ -1,0 +1,10 @@
+---
+sasd_firewall_mode: audit
+sasd_firewall_apply_confirmation: ""
+sasd_firewall_manage: false
+sasd_firewall_provider: none
+sasd_firewall_default_incoming: deny
+sasd_firewall_default_outgoing: allow
+sasd_firewall_rules: []
+sasd_firewall_report_enabled: true
+sasd_firewall_report_root: reports/linux-baseline/firewall

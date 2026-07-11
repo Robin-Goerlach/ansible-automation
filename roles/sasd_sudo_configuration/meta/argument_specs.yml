@@ -1,0 +1,18 @@
+---
+argument_specs:
+  main:
+    short_description: Audit or apply validated sudo drop-ins.
+    options:
+      sasd_sudo_configuration_mode:
+        type: str
+        choices: [audit, apply]
+        default: audit
+      sasd_sudo_configuration_apply_confirmation:
+        type: str
+        default: ""
+      sasd_sudo_configuration_manage:
+        type: bool
+        default: true
+      sasd_sudo_configuration_entries:
+        type: list
+        elements: dict

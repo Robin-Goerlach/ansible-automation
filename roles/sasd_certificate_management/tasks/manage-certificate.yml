@@ -1,0 +1,222 @@
+---
+- name: Certificate apply | Inspect previous certificate file
+  ansible.builtin.stat:
+    path: "{{ sasd_certificate.certificate_path }}"
+  register: sasd_certificate_management_previous_file_stat
+
+- name: Certificate apply | Inspect previous private-key file
+  ansible.builtin.stat:
+    path: "{{ sasd_certificate.private_key_path }}"
+  register: sasd_certificate_management_previous_key_stat
+
+- name: Certificate apply | Capture previous certificate
+  ansible.builtin.slurp:
+    src: "{{ sasd_certificate.certificate_path }}"
+  register: sasd_certificate_management_previous_file
+  when: sasd_certificate_management_previous_file_stat.stat.exists
+
+- name: Certificate apply | Capture previous private key
+  ansible.builtin.slurp:
+    src: "{{ sasd_certificate.private_key_path }}"
+  register: sasd_certificate_management_previous_key
+  no_log: true
+  when: sasd_certificate_management_previous_key_stat.stat.exists
+
+- name: Certificate apply | Apply and validate certificate material
+  block:
+    - name: Certificate apply | Ensure certificate directory exists
+      ansible.builtin.file:
+        path: "{{ sasd_certificate.certificate_path | dirname }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+      when: sasd_certificate.state | default('present') == 'present'
+
+    - name: Certificate apply | Ensure private-key directory exists
+      ansible.builtin.file:
+        path: "{{ sasd_certificate.private_key_path | dirname }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0700"
+      when: sasd_certificate.state | default('present') == 'present'
+
+    - name: Certificate apply | Reject incomplete self-signed state
+      ansible.builtin.assert:
+        that:
+          - >-
+            sasd_certificate_management_previous_file_stat.stat.exists ==
+            sasd_certificate_management_previous_key_stat.stat.exists
+        fail_msg: >-
+          Self-signed generation refuses a partial existing key pair. Repair or remove the orphaned file manually.
+      when:
+        - sasd_certificate.state | default('present') == 'present'
+        - sasd_certificate.source | default('provided') == 'self_signed'
+
+    - name: Certificate apply | Deploy provided certificate
+      ansible.builtin.copy:
+        content: "{{ sasd_certificate.certificate_content }}"
+        dest: "{{ sasd_certificate.certificate_path }}"
+        owner: root
+        group: root
+        mode: "{{ sasd_certificate.certificate_mode | default('0644') }}"
+      no_log: true
+      when:
+        - sasd_certificate.state | default('present') == 'present'
+        - sasd_certificate.source | default('provided') == 'provided'
+
+    - name: Certificate apply | Deploy provided private key
+      ansible.builtin.copy:
+        content: "{{ sasd_certificate.private_key_content }}"
+        dest: "{{ sasd_certificate.private_key_path }}"
+        owner: root
+        group: root
+        mode: "{{ sasd_certificate.private_key_mode | default('0600') }}"
+      no_log: true
+      when:
+        - sasd_certificate.state | default('present') == 'present'
+        - sasd_certificate.source | default('provided') == 'provided'
+
+    - name: Certificate apply | Generate missing self-signed key pair
+      ansible.builtin.command:
+        argv:
+          - "{{ sasd_certificate_management_openssl_binary }}"
+          - req
+          - -x509
+          - -newkey
+          - "rsa:{{ sasd_certificate.key_bits | default(3072) }}"
+          - -sha256
+          - -nodes
+          - -days
+          - "{{ sasd_certificate.validity_days | default(30) }}"
+          - -subj
+          - "{{ sasd_certificate.subject | default('/CN=' ~ sasd_certificate.name) }}"
+          - -keyout
+          - "{{ sasd_certificate.private_key_path }}"
+          - -out
+          - "{{ sasd_certificate.certificate_path }}"
+      when:
+        - sasd_certificate.state | default('present') == 'present'
+        - sasd_certificate.source | default('provided') == 'self_signed'
+        - not sasd_certificate_management_previous_file_stat.stat.exists
+      changed_when: true
+
+    - name: Certificate apply | Set certificate permissions
+      ansible.builtin.file:
+        path: "{{ sasd_certificate.certificate_path }}"
+        owner: root
+        group: root
+        mode: "{{ sasd_certificate.certificate_mode | default('0644') }}"
+      when: sasd_certificate.state | default('present') == 'present'
+
+    - name: Certificate apply | Set private-key permissions
+      ansible.builtin.file:
+        path: "{{ sasd_certificate.private_key_path }}"
+        owner: root
+        group: root
+        mode: "{{ sasd_certificate.private_key_mode | default('0600') }}"
+      when: sasd_certificate.state | default('present') == 'present'
+
+    - name: Certificate apply | Remove retired certificate
+      ansible.builtin.file:
+        path: "{{ sasd_certificate.certificate_path }}"
+        state: absent
+      when: sasd_certificate.state | default('present') == 'absent'
+
+    - name: Certificate apply | Remove retired private key
+      ansible.builtin.file:
+        path: "{{ sasd_certificate.private_key_path }}"
+        state: absent
+      when: sasd_certificate.state | default('present') == 'absent'
+
+    - name: Certificate apply | Validate certificate syntax
+      ansible.builtin.command:
+        argv:
+          - "{{ sasd_certificate_management_openssl_binary }}"
+          - x509
+          - -in
+          - "{{ sasd_certificate.certificate_path }}"
+          - -noout
+      changed_when: false
+      when:
+        - not ansible_check_mode
+        - sasd_certificate.state | default('present') == 'present'
+
+    - name: Certificate apply | Read deployed certificate public key
+      ansible.builtin.command:
+        argv:
+          - "{{ sasd_certificate_management_openssl_binary }}"
+          - x509
+          - -in
+          - "{{ sasd_certificate.certificate_path }}"
+          - -pubkey
+          - -noout
+      register: sasd_certificate_management_deployed_public_key
+      changed_when: false
+      when:
+        - not ansible_check_mode
+        - sasd_certificate.state | default('present') == 'present'
+
+    - name: Certificate apply | Read deployed private-key public key
+      ansible.builtin.command:
+        argv:
+          - "{{ sasd_certificate_management_openssl_binary }}"
+          - pkey
+          - -in
+          - "{{ sasd_certificate.private_key_path }}"
+          - -pubout
+      register: sasd_certificate_management_deployed_private_public_key
+      changed_when: false
+      no_log: true
+      when:
+        - not ansible_check_mode
+        - sasd_certificate.state | default('present') == 'present'
+
+    - name: Certificate apply | Require matching public keys
+      ansible.builtin.assert:
+        that:
+          - >-
+            sasd_certificate_management_deployed_public_key.stdout ==
+            sasd_certificate_management_deployed_private_public_key.stdout
+        fail_msg: Certificate and private key do not form a matching key pair.
+      when:
+        - not ansible_check_mode
+        - sasd_certificate.state | default('present') == 'present'
+  rescue:
+    - name: Certificate apply | Restore previous certificate
+      ansible.builtin.copy:
+        content: "{{ sasd_certificate_management_previous_file.content | b64decode }}"
+        dest: "{{ sasd_certificate.certificate_path }}"
+        owner: root
+        group: root
+        mode: "{{ sasd_certificate.certificate_mode | default('0644') }}"
+      when: sasd_certificate_management_previous_file_stat.stat.exists
+
+    - name: Certificate apply | Remove newly created certificate
+      ansible.builtin.file:
+        path: "{{ sasd_certificate.certificate_path }}"
+        state: absent
+      when: not sasd_certificate_management_previous_file_stat.stat.exists
+
+    - name: Certificate apply | Restore previous private key
+      ansible.builtin.copy:
+        content: "{{ sasd_certificate_management_previous_key.content | b64decode }}"
+        dest: "{{ sasd_certificate.private_key_path }}"
+        owner: root
+        group: root
+        mode: "{{ sasd_certificate.private_key_mode | default('0600') }}"
+      no_log: true
+      when: sasd_certificate_management_previous_key_stat.stat.exists
+
+    - name: Certificate apply | Remove newly created private key
+      ansible.builtin.file:
+        path: "{{ sasd_certificate.private_key_path }}"
+        state: absent
+      when: not sasd_certificate_management_previous_key_stat.stat.exists
+
+    - name: Certificate apply | Stop after rollback
+      ansible.builtin.fail:
+        msg: >-
+          Certificate deployment failed for {{ sasd_certificate.name }};
+          the previous certificate and key state were restored.

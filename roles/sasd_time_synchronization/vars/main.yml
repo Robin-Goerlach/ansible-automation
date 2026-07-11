@@ -1,0 +1,26 @@
+---
+sasd_time_synchronization_auto_provider:
+  Debian: systemd-timesyncd
+  RedHat: chrony
+  Suse: chrony
+sasd_time_synchronization_package:
+  systemd-timesyncd:
+    Debian: systemd-timesyncd
+  chrony:
+    Debian: chrony
+    RedHat: chrony
+    Suse: chrony
+sasd_time_synchronization_service:
+  systemd-timesyncd:
+    Debian: systemd-timesyncd
+  chrony:
+    Debian: chrony
+    RedHat: chronyd
+    Suse: chronyd
+
+sasd_time_synchronization_chrony_main_config:
+  Debian: /etc/chrony/chrony.conf
+  RedHat: /etc/chrony.conf
+  Suse: /etc/chrony.conf
+sasd_time_synchronization_chrony_drop_in_directory: /etc/chrony.d
+sasd_time_synchronization_chrony_drop_in: /etc/chrony.d/60-sasd-baseline.conf

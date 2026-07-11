@@ -1,0 +1,23 @@
+---
+- name: Validate web-services role contracts in audit mode
+  hosts: webservers
+  become: false
+  gather_facts: true
+  vars:
+    sasd_apache_mode: audit
+    sasd_nginx_mode: audit
+    sasd_php_mode: audit
+    sasd_certificate_management_mode: audit
+  roles:
+    - role: sasd_certificate_management
+    - role: sasd_php
+    - role: sasd_apache
+    - role: sasd_nginx
+  tasks:
+    - name: Web services validation | Assert schemas
+      ansible.builtin.assert:
+        that:
+          - sasd_certificate_management_result.schema == 'sasd.certificate-management.v1'
+          - sasd_php_result.schema == 'sasd.php.v1'
+          - sasd_apache_result.schema == 'sasd.apache.v1'
+          - sasd_nginx_result.schema == 'sasd.nginx.v1'

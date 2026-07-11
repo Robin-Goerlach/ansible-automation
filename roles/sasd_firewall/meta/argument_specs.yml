@@ -1,0 +1,22 @@
+---
+argument_specs:
+  main:
+    short_description: Audit or explicitly apply a UFW/firewalld policy.
+    options:
+      sasd_firewall_mode:
+        type: str
+        choices: [audit, apply]
+        default: audit
+      sasd_firewall_apply_confirmation:
+        type: str
+        default: ""
+      sasd_firewall_manage:
+        type: bool
+        default: false
+      sasd_firewall_provider:
+        type: str
+        choices: [none, ufw, firewalld]
+        default: none
+      sasd_firewall_rules:
+        type: list
+        elements: dict

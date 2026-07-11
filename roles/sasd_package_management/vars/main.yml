@@ -1,0 +1,3 @@
+---
+sasd_package_management_allowed_repository_path_pattern: >-
+  ^/etc/(apt/sources\.list\.d/[A-Za-z0-9_.-]+\.(list|sources)|yum\.repos\.d/[A-Za-z0-9_.-]+\.repo|zypp/repos\.d/[A-Za-z0-9_.-]+\.repo)$

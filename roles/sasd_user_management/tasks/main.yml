@@ -1,0 +1,133 @@
+---
+- name: User management | Validate safety and declarations
+  ansible.builtin.assert:
+    that:
+      - sasd_user_management_mode in ['audit', 'apply']
+      - ansible_facts.system == 'Linux'
+      - sasd_user_management_groups is iterable
+      - sasd_user_management_users is iterable
+      - >-
+        sasd_user_management_mode == 'audit' or
+        sasd_user_management_apply_confirmation == 'SASD_APPLY_LINUX_BASELINE'
+    fail_msg: User management apply mode requires the exact Milestone 2 confirmation token.
+
+- name: User management | Validate group declarations
+  ansible.builtin.assert:
+    that:
+      - item.name is defined
+      - item.name is match('^[a-z_][a-z0-9_-]*[$]?$')
+      - item.state | default('present') in ['present', 'absent']
+  loop: "{{ sasd_user_management_groups }}"
+  loop_control:
+    label: "{{ item.name | default('missing-name') }}"
+
+- name: User management | Validate user declarations
+  ansible.builtin.assert:
+    that:
+      - item.name is defined
+      - item.name is match('^[a-z_][a-z0-9_-]*[$]?$')
+      - item.state | default('present') in ['present', 'absent']
+      - item.authorized_keys | default([]) is iterable
+  loop: "{{ sasd_user_management_users }}"
+  loop_control:
+    label: "{{ item.name | default('missing-name') }}"
+
+- name: User management | Read passwd database
+  ansible.builtin.getent:
+    database: passwd
+  failed_when: false
+
+- name: User management | Read group database
+  ansible.builtin.getent:
+    database: group
+  failed_when: false
+
+- name: User management | Apply declared groups
+  ansible.builtin.group:
+    name: "{{ item.name }}"
+    gid: "{{ item.gid | default(omit) }}"
+    system: "{{ item.system | default(false) }}"
+    state: "{{ item.state | default('present') }}"
+  loop: "{{ sasd_user_management_groups }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when:
+    - sasd_user_management_mode == 'apply'
+    - sasd_user_management_manage | bool
+
+- name: User management | Apply declared users
+  ansible.builtin.user:
+    name: "{{ item.name }}"
+    comment: "{{ item.comment | default(omit) }}"
+    uid: "{{ item.uid | default(omit) }}"
+    group: "{{ item.group | default(omit) }}"
+    groups: "{{ item.groups | default(omit) }}"
+    append: "{{ item.append | default(true) }}"
+    shell: "{{ item.shell | default('/bin/bash') }}"
+    home: "{{ item.home | default(omit) }}"
+    create_home: "{{ item.create_home | default(true) }}"
+    system: "{{ item.system | default(false) }}"
+    state: "{{ item.state | default('present') }}"
+    remove: "{{ item.remove | default(false) }}"
+  loop: "{{ sasd_user_management_users }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when:
+    - sasd_user_management_mode == 'apply'
+    - sasd_user_management_manage | bool
+
+- name: User management | Create managed SSH directories
+  ansible.builtin.file:
+    path: "{{ item.home | default('/root' if item.name == 'root' else '/home/' ~ item.name) }}/.ssh"
+    state: directory
+    owner: "{{ item.name }}"
+    group: "{{ item.group | default(item.name) }}"
+    mode: "0700"
+  loop: "{{ sasd_user_management_users }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when:
+    - sasd_user_management_mode == 'apply'
+    - sasd_user_management_manage | bool
+    - item.state | default('present') == 'present'
+    - item.authorized_keys | default([]) | length > 0
+
+- name: User management | Write managed authorized keys
+  ansible.builtin.template:
+    src: authorized_keys.j2
+    dest: "{{ item.home | default('/home/' ~ item.name) }}/.ssh/authorized_keys"
+    owner: "{{ item.name }}"
+    group: "{{ item.group | default(item.name) }}"
+    mode: "0600"
+    backup: true
+  loop: "{{ sasd_user_management_users }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when:
+    - sasd_user_management_mode == 'apply'
+    - sasd_user_management_manage | bool
+    - item.state | default('present') == 'present'
+    - item.authorized_keys | default([]) | length > 0
+
+- name: User management | Build audit result
+  ansible.builtin.set_fact:
+    sasd_user_management_result:
+      schema: sasd.user-management.v1
+      host: "{{ inventory_hostname }}"
+      collected_at_utc: "{{ ansible_facts.date_time.iso8601 }}"
+      mode: "{{ sasd_user_management_mode }}"
+      manage_enabled: "{{ sasd_user_management_manage | bool }}"
+      declared_groups: "{{ sasd_user_management_groups | map(attribute='name') | list }}"
+      declared_users: "{{ sasd_user_management_users | map(attribute='name') | list }}"
+      existing_declared_users: >-
+        {{ sasd_user_management_users | map(attribute='name') |
+           select('in', ansible_facts.getent_passwd | default({})) | list }}
+      undeclared_users_removed: false
+
+- name: User management | Write local JSON report
+  ansible.builtin.include_tasks: ../../sasd_system_baseline/tasks/write-report.yml
+  vars:
+    sasd_report_enabled: "{{ sasd_user_management_report_enabled }}"
+    sasd_report_root: "{{ sasd_user_management_report_root }}"
+    sasd_report_payload: "{{ sasd_user_management_result }}"
+    sasd_report_filename: "{{ inventory_hostname }}.json"

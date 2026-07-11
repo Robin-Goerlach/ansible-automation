@@ -1,0 +1,31 @@
+# frozen_string_literal: true
+
+boxes = {
+  "debian12" => ENV.fetch("SASD_VM_BOX_DEBIAN", "debian/bookworm64"),
+  "ubuntu2404" => ENV.fetch("SASD_VM_BOX_UBUNTU", "ubuntu/noble64"),
+  "rocky9" => ENV.fetch("SASD_VM_BOX_ROCKY", "generic/rocky9"),
+  "opensuse15" => ENV.fetch("SASD_VM_BOX_OPENSUSE", "opensuse/Leap-15.6.x86_64")
+}
+
+Vagrant.configure("2") do |config|
+  config.ssh.insert_key = true
+  boxes.each do |name, box|
+    config.vm.define name do |node|
+      node.vm.box = box
+      node.vm.hostname = "sasd-#{name}"
+      node.vm.provider :libvirt do |libvirt|
+        libvirt.memory = ENV.fetch("SASD_VM_MEMORY", "1024").to_i
+        libvirt.cpus = ENV.fetch("SASD_VM_CPUS", "1").to_i
+      end
+      node.vm.provision "shell", inline: <<-SHELL
+        if command -v apt-get >/dev/null 2>&1; then
+          apt-get update && apt-get install -y python3 sudo
+        elif command -v dnf >/dev/null 2>&1; then
+          dnf install -y python3 sudo
+        elif command -v zypper >/dev/null 2>&1; then
+          zypper --non-interactive install python3 sudo
+        fi
+      SHELL
+    end
+  end
+end

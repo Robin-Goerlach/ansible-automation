@@ -1,0 +1,21 @@
+---
+- name: Audit or apply Linux access baseline
+  hosts: linux_managed
+  become: "{{ sasd_linux_baseline_mode == 'apply' }}"
+  gather_facts: true
+  vars:
+    sasd_linux_baseline_mode: audit
+    sasd_linux_baseline_apply_confirmation: ""
+  roles:
+    - role: sasd_user_management
+      vars:
+        sasd_user_management_mode: "{{ sasd_linux_baseline_mode }}"
+        sasd_user_management_apply_confirmation: "{{ sasd_linux_baseline_apply_confirmation }}"
+    - role: sasd_sudo_configuration
+      vars:
+        sasd_sudo_configuration_mode: "{{ sasd_linux_baseline_mode }}"
+        sasd_sudo_configuration_apply_confirmation: "{{ sasd_linux_baseline_apply_confirmation }}"
+    - role: sasd_ssh_server
+      vars:
+        sasd_ssh_server_mode: "{{ sasd_linux_baseline_mode }}"
+        sasd_ssh_server_apply_confirmation: "{{ sasd_linux_baseline_apply_confirmation }}"

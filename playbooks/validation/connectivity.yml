@@ -1,0 +1,15 @@
+---
+- name: Validate Ansible connectivity
+  hosts: all
+  gather_facts: false
+  become: false
+
+  tasks:
+    - name: Verify that Ansible can execute a module
+      ansible.builtin.ping:
+
+    - name: Report successful connectivity
+      ansible.builtin.debug:
+        msg: >-
+          Ansible module execution on {{ inventory_hostname }} succeeded using
+          connection type {{ ansible_connection | default('smart') }}.

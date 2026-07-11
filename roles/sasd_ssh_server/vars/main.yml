@@ -1,0 +1,9 @@
+---
+sasd_ssh_server_service_by_family:
+  Debian: ssh
+  RedHat: sshd
+  Suse: sshd
+sasd_ssh_server_binary_candidates:
+  - /usr/sbin/sshd
+  - /sbin/sshd
+sasd_ssh_server_drop_in: /etc/ssh/sshd_config.d/60-sasd-baseline.conf
