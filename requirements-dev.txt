@@ -1,5 +1,5 @@
 # Milestone 4 development and acceptance toolchain.
-ansible-core>=2.21.1,<2.22.0
+ansible-core>=2.21.5,<2.22.0
 ansible-lint>=26.6.0,<27.0.0
 molecule>=25.0.0,<26.0.0
 pytest>=8.0.0,<10.0.0
